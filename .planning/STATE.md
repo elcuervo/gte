@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 01-scaffold-01-PLAN.md (gem scaffold + Rust extension skeleton + Nix devShell)
+stopped_at: Completed Phase 1 — gem scaffold, Rust extension skeleton, Nix devShell, GitHub Actions CI
 last_updated: "2026-04-06T21:03:40.957Z"
 last_activity: "2026-04-06 — Phase 1 context gathered: Nix flake design decided"
 progress:
@@ -36,9 +36,9 @@ Progress: [█████░░░░░] 50%
 
 **Velocity:**
 
-- Total plans completed: 1
+- Total plans completed: 2
 - Average duration: 3 min
-- Total execution time: 0.05 hours
+- Total execution time: 0.1 hours
 
 **By Phase:**
 
@@ -48,10 +48,11 @@ Progress: [█████░░░░░] 50%
 
 **Recent Trend:**
 
-- Last 5 plans: 01-scaffold-01 (3 min, 3 tasks, 12 files)
+- Last 5 plans: 01-scaffold-01 (3 min, 3 tasks, 12 files), 01-scaffold-02 (3 min, 1 task, 1 file)
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 01 P02 | 5 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -67,6 +68,8 @@ Recent decisions affecting current work:
 - [Phase 01-scaffold]: GTE::Error inherits StandardError via magnus exception_standard_error() — specifically catchable
 - [Phase 01-scaffold]: Rust panic hook installed in Phase 1 before any user-callable methods — correct safety from day one
 - [Phase 01-scaffold]: ORT env vars in flake.nix shellHook now despite Phase 1 having no ort dep — environment ready for Phase 2
+- [Phase 01]: Use @v4 for all standard GitHub Actions — nero uses @v6 which does not exist
+- [Phase 01]: No gem publish step in Phase 1 CI — deferred to Phase 4
 
 ### Pending Todos
 
@@ -80,5 +83,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-06T21:03:40.954Z
-Stopped at: Completed 01-scaffold-01-PLAN.md (gem scaffold + Rust extension skeleton + Nix devShell)
+Stopped at: Completed Phase 1 — gem scaffold, Rust extension skeleton, Nix devShell, GitHub Actions CI
 Resume file: None

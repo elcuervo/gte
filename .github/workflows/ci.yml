@@ -1,0 +1,67 @@
+name: Build Native Gems
+permissions: write-all
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: x86_64-linux
+            target: x86_64-unknown-linux-gnu
+          - platform: arm64-darwin
+            target: aarch64-apple-darwin
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oxidize-rb/actions/setup-ruby-and-rust@v1.4.4
+        with:
+          ruby-version: "3.4"
+          bundler-cache: false
+          cargo-cache: true
+          cargo-vendor: true
+
+      - uses: oxidize-rb/actions/cross-gem@v1
+        id: cross-gem
+        with:
+          platform: ${{ matrix.platform }}
+          ruby-versions: "3.4"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle-artifact-${{ matrix.platform }}
+          path: ${{ steps.cross-gem.outputs.gem-path }}
+
+  source:
+    name: Build source gem
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oxidize-rb/actions/setup-ruby-and-rust@v1.4.4
+        with:
+          ruby-version: "3.4"
+          bundler-cache: false
+          cargo-cache: true
+          cargo-vendor: true
+
+      - name: Build gem
+        run: |
+          gem build gte.gemspec
+          mkdir -p pkg/
+          mv *.gem pkg/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle-artifact-source
+          path: pkg/

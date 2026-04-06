@@ -15,7 +15,7 @@
 - [x] **SCAF-03**: Developer can run `require 'gte'` in Ruby without errors (extension loads)
 - [x] **SCAF-04**: `GTE::Error` Ruby exception class exists and is raised for all Rust-level failures (no process crashes from panics crossing FFI)
 - [x] **SCAF-05**: Gem version is synchronized between `VERSION` file and `Cargo.toml` (enforced via `build.rs` assertion)
-- [ ] **SCAF-06**: Multi-arch builds produce native gems for `aarch64-apple-darwin` and `x86_64-unknown-linux-gnu` via GitHub Actions CI
+- [x] **SCAF-06**: Multi-arch builds produce native gems for `aarch64-apple-darwin` and `x86_64-unknown-linux-gnu` via GitHub Actions CI
 
 ### Core Embedding (Rust)
 
@@ -82,7 +82,7 @@
 | SCAF-03 | Phase 1 | Complete |
 | SCAF-04 | Phase 1 | Complete |
 | SCAF-05 | Phase 1 | Complete |
-| SCAF-06 | Phase 1 | Pending |
+| SCAF-06 | Phase 1 | Complete |
 | RUST-01 | Phase 2 | Pending |
 | RUST-02 | Phase 2 | Pending |
 | RUST-03 | Phase 2 | Pending |

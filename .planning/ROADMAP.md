@@ -33,7 +33,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 01-01-PLAN.md — Gem scaffold + Rust extension skeleton + Nix devShell (SCAF-01 through SCAF-05)
-- [ ] 01-02-PLAN.md — GitHub Actions CI cross-compilation workflow (SCAF-06)
+- [x] 01-02-PLAN.md — GitHub Actions CI cross-compilation workflow (SCAF-06)
 
 ### Phase 2: Rust Inference Core
 **Goal**: The full tokenize → ONNX session → embedding extraction pipeline runs correctly in Rust integration tests against real model files, before any Ruby FFI is added
