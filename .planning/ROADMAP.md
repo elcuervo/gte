@@ -29,7 +29,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. `require 'gte'` in Ruby loads without error
   4. `GTE::Error` exception class exists and Rust panics surface as `GTE::Error` rather than crashing the Ruby process
   5. GitHub Actions CI produces native gems for `aarch64-apple-darwin` and `x86_64-unknown-linux-gnu`
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Gem scaffold + Rust extension skeleton + Nix devShell (SCAF-01 through SCAF-05)
+- [ ] 01-02-PLAN.md — GitHub Actions CI cross-compilation workflow (SCAF-06)
 
 ### Phase 2: Rust Inference Core
 **Goal**: The full tokenize → ONNX session → embedding extraction pipeline runs correctly in Rust integration tests against real model files, before any Ruby FFI is added
@@ -73,7 +77,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Scaffold | 0/? | Not started | - |
+| 1. Scaffold | 0/2 | Not started | - |
 | 2. Rust Inference Core | 0/? | Not started | - |
 | 3. Ruby Bindings + API | 0/? | Not started | - |
 | 4. Benchmark Validation | 0/? | Not started | - |
