@@ -1,0 +1,15 @@
+[package]
+name = "gte"
+version = "0.1.0"
+edition = "2021"
+authors = ["elcuervo <elcuervo@elcuervo.net>"]
+license = "MIT"
+publish = false
+build = "build.rs"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+rb-sys = { version = "0.9", features = ["stable-api-compiled-fallback"] }
+magnus = "0.8"
