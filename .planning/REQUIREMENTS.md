@@ -75,15 +75,32 @@
 
 ## Traceability
 
-*Filled by roadmapper.*
-
-| Requirement | Phase |
-|-------------|-------|
-| SCAF-01 – SCAF-06 | TBD |
-| RUST-01 – RUST-05 | TBD |
-| BIND-01 – BIND-04 | TBD |
-| API-01 – API-07 | TBD |
-| BENCH-01 – BENCH-02 | TBD |
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| SCAF-01 | Phase 1 | Pending |
+| SCAF-02 | Phase 1 | Pending |
+| SCAF-03 | Phase 1 | Pending |
+| SCAF-04 | Phase 1 | Pending |
+| SCAF-05 | Phase 1 | Pending |
+| SCAF-06 | Phase 1 | Pending |
+| RUST-01 | Phase 2 | Pending |
+| RUST-02 | Phase 2 | Pending |
+| RUST-03 | Phase 2 | Pending |
+| RUST-04 | Phase 2 | Pending |
+| RUST-05 | Phase 2 | Pending |
+| BIND-01 | Phase 3 | Pending |
+| BIND-02 | Phase 3 | Pending |
+| BIND-03 | Phase 3 | Pending |
+| BIND-04 | Phase 3 | Pending |
+| API-01 | Phase 3 | Pending |
+| API-02 | Phase 3 | Pending |
+| API-03 | Phase 3 | Pending |
+| API-04 | Phase 3 | Pending |
+| API-05 | Phase 3 | Pending |
+| API-06 | Phase 3 | Pending |
+| API-07 | Phase 3 | Pending |
+| BENCH-01 | Phase 4 | Pending |
+| BENCH-02 | Phase 4 | Pending |
 
 ---
 
