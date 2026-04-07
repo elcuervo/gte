@@ -27,10 +27,10 @@
 
 ### Ruby Bindings
 
-- [ ] **BIND-01**: `GTE::Embedder.new(tokenizer_path:, model_path:, config:)` creates a Ruby object wrapping the Rust `#[wrap]` struct
-- [ ] **BIND-02**: `embedder.embed(texts)` accepts a Ruby `Array<String>` and returns `Array<Array<Float>>` (batch) or `Array<Float>` (single string)
-- [ ] **BIND-03**: The GVL (Global VM Lock) is released during the Rust inference call so concurrent Ruby threads are not blocked
-- [ ] **BIND-04**: All Rust errors are converted to `GTE::Error` Ruby exceptions — no segfaults or unhandled panics
+- [x] **BIND-01**: `GTE::Embedder.new(tokenizer_path:, model_path:, config:)` creates a Ruby object wrapping the Rust `#[wrap]` struct
+- [x] **BIND-02**: `embedder.embed(texts)` accepts a Ruby `Array<String>` and returns `Array<Array<Float>>` (batch) or `Array<Float>` (single string)
+- [x] **BIND-03**: The GVL (Global VM Lock) is released during the Rust inference call so concurrent Ruby threads are not blocked
+- [x] **BIND-04**: All Rust errors are converted to `GTE::Error` Ruby exceptions — no segfaults or unhandled panics
 
 ### Ruby API Layer
 
@@ -40,7 +40,7 @@
 - [ ] **API-04**: `GTE::E5#embed_query(text)` prepends `"query: "` prefix before embedding
 - [ ] **API-05**: `GTE::E5#embed_passage(text)` prepends `"passage: "` prefix before embedding
 - [ ] **API-06**: `GTE.configure { |c| c.model_path = "..." }` sets global defaults; `GTE.default` returns a memoized default embedder
-- [ ] **API-07**: Embedding output is L2-normalized by default (enables cosine similarity via dot product)
+- [x] **API-07**: Embedding output is L2-normalized by default (enables cosine similarity via dot product)
 
 ### Benchmark Validation
 
@@ -88,17 +88,17 @@
 | RUST-03 | Phase 2 | Complete |
 | RUST-04 | Phase 2 | Complete |
 | RUST-05 | Phase 2 | Complete |
-| BIND-01 | Phase 3 | Pending |
-| BIND-02 | Phase 3 | Pending |
-| BIND-03 | Phase 3 | Pending |
-| BIND-04 | Phase 3 | Pending |
+| BIND-01 | Phase 3 | Complete |
+| BIND-02 | Phase 3 | Complete |
+| BIND-03 | Phase 3 | Complete |
+| BIND-04 | Phase 3 | Complete |
 | API-01 | Phase 3 | Pending |
 | API-02 | Phase 3 | Pending |
 | API-03 | Phase 3 | Pending |
 | API-04 | Phase 3 | Pending |
 | API-05 | Phase 3 | Pending |
 | API-06 | Phase 3 | Pending |
-| API-07 | Phase 3 | Pending |
+| API-07 | Phase 3 | Complete |
 | BENCH-01 | Phase 4 | Pending |
 | BENCH-02 | Phase 4 | Pending |
 
