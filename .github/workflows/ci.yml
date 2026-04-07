@@ -65,3 +65,31 @@ jobs:
         with:
           name: bundle-artifact-source
           path: pkg/
+
+  verify:
+    name: Verify native gem
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: x86_64-linux
+          - os: macos-latest
+            platform: arm64-darwin
+
+    steps:
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: bundle-artifact-${{ matrix.platform }}
+          path: pkg/
+
+      - name: Install and verify native gem
+        run: |
+          gem install pkg/*.gem
+          ruby -e "require 'gte'; puts GTE::VERSION; puts 'Native gem loaded OK'"
