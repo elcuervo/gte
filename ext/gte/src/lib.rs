@@ -1,3 +1,6 @@
+pub(crate) mod error;
+pub(crate) mod model_config;
+
 use magnus::{prelude::*, Error, Ruby};
 
 #[magnus::init]

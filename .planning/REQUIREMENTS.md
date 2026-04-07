@@ -21,9 +21,9 @@
 
 - [ ] **RUST-01**: Rust pipeline tokenizes a batch of strings using HuggingFace `tokenizers` crate loaded from a local `tokenizer.json` file
 - [ ] **RUST-02**: Rust pipeline runs an ONNX model session via `ort` v2 with correct input tensors (`input_ids`, `attention_mask`, and optional `token_type_ids`/`position_ids`)
-- [ ] **RUST-03**: Rust pipeline extracts embeddings from output tensor using configurable extraction mode (CLS token or Raw)
+- [x] **RUST-03**: Rust pipeline extracts embeddings from output tensor using configurable extraction mode (CLS token or Raw)
 - [ ] **RUST-04**: Rust pipeline is validated against real ONNX model files via Rust integration tests before Ruby bindings are added
-- [ ] **RUST-05**: Long inputs are truncated at model max token length (512 for E5, 77 for CLIP, 64 for Siglip2) without error
+- [x] **RUST-05**: Long inputs are truncated at model max token length (512 for E5, 77 for CLIP, 64 for Siglip2) without error
 
 ### Ruby Bindings
 
@@ -85,9 +85,9 @@
 | SCAF-06 | Phase 1 | Complete |
 | RUST-01 | Phase 2 | Pending |
 | RUST-02 | Phase 2 | Pending |
-| RUST-03 | Phase 2 | Pending |
+| RUST-03 | Phase 2 | Complete |
 | RUST-04 | Phase 2 | Pending |
-| RUST-05 | Phase 2 | Pending |
+| RUST-05 | Phase 2 | Complete |
 | BIND-01 | Phase 3 | Pending |
 | BIND-02 | Phase 3 | Pending |
 | BIND-03 | Phase 3 | Pending |
