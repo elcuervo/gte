@@ -13,13 +13,16 @@ Generate text embeddings faster than `fastembed` for E5, Siglip2, and CLIP — w
 ### Validated
 
 - [x] Rust inference pipeline (tokenize → ORT session → embedding extraction) — validated in Phase 2: Rust Inference Core
+- [x] Ruby FFI bindings with GVL release, L2 normalization, error conversion — validated in Phase 3: Ruby Bindings + API
+- [x] Ruby API: E5/CLIP/Siglip2 family classes, configure/default pattern — validated in Phase 3: Ruby Bindings + API
+- [x] Supports E5 model family (text embedding) — validated in Phase 3: Ruby Bindings + API
+- [x] Supports Siglip2 model (text embedding) — validated in Phase 3 (pending output tensor fixture)
+- [x] Supports CLIP model (text embedding) — validated in Phase 3: Ruby Bindings + API
+- [x] Minimal API: load model, embed text, return float array — validated in Phase 3: Ruby Bindings + API
 
 ### Active
 
 - [ ] Ruby gem with Rust extension generates text embeddings via ONNX Runtime
-- [ ] Supports E5 model family (text embedding)
-- [ ] Supports Siglip2 model (text embedding)
-- [ ] Supports CLIP model (text embedding)
 - [ ] Multi-arch build via flake.nix (aarch64 + x86_64)
 - [ ] Embedding throughput exceeds `fastembed` gem for compatible models
 - [ ] Minimal API: load model, embed text, return float array
