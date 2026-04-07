@@ -12,7 +12,7 @@ Generate text embeddings faster than `fastembed` for E5, Siglip2, and CLIP — w
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Rust inference pipeline (tokenize → ORT session → embedding extraction) — validated in Phase 2: Rust Inference Core
 
 ### Active
 
