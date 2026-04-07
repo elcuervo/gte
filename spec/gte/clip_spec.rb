@@ -17,10 +17,8 @@ RSpec.describe "GTE::CLIP" do
     end
   end
 
-  context "with real model fixture", if: GTE_FIXTURES_AVAILABLE do
-    # CLIP requires a CLIP-compatible ONNX model and tokenizer.
-    # Override GTE_MODEL_PATH with a CLIP model path to test this class.
-    let(:clip) { GTE::CLIP.new(model_path: GTE_MODEL_PATH, tokenizer_path: GTE_TOKENIZER_PATH) }
+  context "with real CLIP model fixture", if: GTE_CLIP_FIXTURES_AVAILABLE do
+    let(:clip) { GTE::CLIP.new(model_path: GTE_CLIP_MODEL_PATH, tokenizer_path: GTE_CLIP_TOKENIZER_PATH) }
     let(:text) { "a photo of a cat" }
 
     describe "#embed (API-02)" do
@@ -39,9 +37,9 @@ RSpec.describe "GTE::CLIP" do
     end
   end
 
-  context "without model fixture", unless: GTE_FIXTURES_AVAILABLE do
-    it "fixture tests skipped — set GTE_MODEL_PATH and GTE_TOKENIZER_PATH to enable" do
-      skip "Set GTE_MODEL_PATH and GTE_TOKENIZER_PATH environment variables to run fixture-dependent tests"
+  context "without CLIP model fixture", unless: GTE_CLIP_FIXTURES_AVAILABLE do
+    it "fixture tests skipped — set GTE_CLIP_MODEL_PATH to enable" do
+      skip "Set GTE_CLIP_MODEL_PATH environment variable to run CLIP fixture-dependent tests"
     end
   end
 end

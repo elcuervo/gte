@@ -45,7 +45,7 @@ impl Embedder {
             config.max_length,
             config.with_type_ids,
         )?;
-        let session = build_session(model_path)?;
+        let session = build_session(model_path, &config)?;
         Ok(Self { tokenizer, session, config })
     }
 

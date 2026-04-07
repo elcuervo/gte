@@ -14,9 +14,10 @@ RSpec.describe "GTE.configure (API-06)" do
       expect(defined?(GTE::Configuration)).to eq("constant")
     end
 
-    it "initializes with :e5 as default model_family" do
+    it "initializes with E5 as default model_config" do
       config = GTE::Configuration.new
-      expect(config.model_family).to eq(:e5)
+      expect(config.model_config).to be_a(GTE::ModelConfig)
+      expect(config.model_config.max_length).to eq(512)
     end
 
     it "has attr_accessor for model_path" do
@@ -31,10 +32,10 @@ RSpec.describe "GTE.configure (API-06)" do
       expect(config.tokenizer_path).to eq("/path/to/tokenizer.json")
     end
 
-    it "has attr_accessor for model_family" do
+    it "has attr_accessor for model_config" do
       config = GTE::Configuration.new
-      config.model_family = :clip
-      expect(config.model_family).to eq(:clip)
+      config.model_config = GTE::ModelConfig.clip
+      expect(config.model_config.max_length).to eq(77)
     end
   end
 
@@ -42,10 +43,10 @@ RSpec.describe "GTE.configure (API-06)" do
     it "yields the config object" do
       GTE.configure do |c|
         c.model_path    = "/tmp/model.onnx"
-        c.model_family  = :clip
+        c.model_config  = GTE::ModelConfig.clip
       end
       expect(GTE.config.model_path).to eq("/tmp/model.onnx")
-      expect(GTE.config.model_family).to eq(:clip)
+      expect(GTE.config.model_config.max_length).to eq(77)
     end
   end
 
@@ -77,7 +78,7 @@ RSpec.describe "GTE.configure (API-06)" do
       GTE.configure do |c|
         c.model_path      = GTE_MODEL_PATH
         c.tokenizer_path  = GTE_TOKENIZER_PATH
-        c.model_family    = :e5
+        c.model_config    = GTE::ModelConfig.e5
       end
 
       first_default  = GTE.default
@@ -85,20 +86,20 @@ RSpec.describe "GTE.configure (API-06)" do
       expect(first_default).to be(second_default), "GTE.default should return the same memoized instance"
     end
 
-    it "returns a GTE::E5 instance when model_family is :e5" do
+    it "returns a GTE::Embedder instance from model_config" do
       GTE.configure do |c|
         c.model_path      = GTE_MODEL_PATH
         c.tokenizer_path  = GTE_TOKENIZER_PATH
-        c.model_family    = :e5
+        c.model_config    = GTE::ModelConfig.e5
       end
-      expect(GTE.default).to be_a(GTE::E5)
+      expect(GTE.default).to be_a(GTE::Embedder)
     end
 
     it "returns a new instance after GTE.reset_default!" do
       GTE.configure do |c|
         c.model_path      = GTE_MODEL_PATH
         c.tokenizer_path  = GTE_TOKENIZER_PATH
-        c.model_family    = :e5
+        c.model_config    = GTE::ModelConfig.e5
       end
       first = GTE.default
       GTE.reset_default!

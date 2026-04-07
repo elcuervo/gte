@@ -27,19 +27,17 @@ RSpec.describe "GTE::Embedder" do
   end
 
   describe ".new argument validation" do
-    it "raises ArgumentError for unknown config name (no model needed)" do
-      # Use paths that will never be reached — config validation is first
-      # (Embedder raises ArgumentError before checking file existence)
+    it "raises ArgumentError for unknown mode string" do
       expect {
-        GTE::Embedder.new("/dev/null", "/dev/null", "unknown_config")
-      }.to raise_error(ArgumentError, /unknown config/)
+        GTE::Embedder.new("/dev/null", "/dev/null", 512, "last_hidden_state", "unknown_mode", true, true, 0, 3)
+      }.to raise_error(ArgumentError, /unknown mode/)
     end
   end
 
   describe ".new with invalid paths" do
     it "raises GTE::Error when model file does not exist" do
       expect {
-        GTE::Embedder.new("/nonexistent/tokenizer.json", "/nonexistent/model.onnx", "e5")
+        GTE::Embedder.new("/nonexistent/tokenizer.json", "/nonexistent/model.onnx", 512, "last_hidden_state", "mean_pool", true, true, 0, 3)
       }.to raise_error(GTE::Error)
     end
   end
@@ -50,7 +48,7 @@ RSpec.describe "GTE::Embedder" do
 
   context "with real model fixture", if: GTE_FIXTURES_AVAILABLE do
     let(:embedder) do
-      GTE::Embedder.new(GTE_TOKENIZER_PATH, GTE_MODEL_PATH, "e5")
+      GTE::Embedder.new(GTE_TOKENIZER_PATH, GTE_MODEL_PATH, 512, "last_hidden_state", "mean_pool", true, true, 0, 3)
     end
 
     let(:sample_texts) { ["Hello world", "The quick brown fox"] }

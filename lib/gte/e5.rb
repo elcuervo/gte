@@ -7,9 +7,13 @@ module GTE
   class E5
     # Initialize with model path. Tokenizer defaults to tokenizer.json in same directory.
     # Per D-06: prefix semantics implemented in Ruby, not Rust.
-    def initialize(model_path:, tokenizer_path: nil)
+    def initialize(model_path:, tokenizer_path: nil, config: ModelConfig.e5)
       resolved_tokenizer = tokenizer_path || File.join(File.dirname(model_path), "tokenizer.json")
-      @embedder = GTE::Embedder.new(resolved_tokenizer, model_path, "e5")
+      @embedder = GTE::Embedder.new(
+        resolved_tokenizer, model_path,
+        config.max_length, config.output_tensor, config.mode.to_s, config.with_type_ids,
+        config.with_attention_mask, config.num_threads, config.optimization_level
+      )
     end
 
     # Embed a batch of texts without any prefix. Returns Array<Array<Float>>.

@@ -9,10 +9,25 @@ use crate::tokenizer::Tokenized;
 
 /// Create an ORT inference session from a local ONNX model file.
 ///
-/// Uses ORT v2 API: `Session::builder()?.commit_from_file(path)`
-/// NOT the v1 `SessionBuilder::new()` API (does not exist in ort 2.0.0-rc.9).
-pub fn build_session<P: AsRef<Path>>(model_path: P) -> Result<Session> {
-    let session = Session::builder()?.commit_from_file(model_path)?;
+/// Applies graph optimization level, thread configuration, and memory pattern
+/// optimization for best inference performance.
+pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Result<Session> {
+    let opt_level = match config.optimization_level {
+        0 => ort::session::builder::GraphOptimizationLevel::Disable,
+        1 => ort::session::builder::GraphOptimizationLevel::Level1,
+        2 => ort::session::builder::GraphOptimizationLevel::Level2,
+        _ => ort::session::builder::GraphOptimizationLevel::Level3,
+    };
+
+    let mut builder = Session::builder()?
+        .with_optimization_level(opt_level)?
+        .with_memory_pattern(true)?;
+
+    if config.num_threads > 0 {
+        builder = builder.with_intra_threads(config.num_threads)?;
+    }
+
+    let session = builder.commit_from_file(model_path)?;
     Ok(session)
 }
 
@@ -31,10 +46,12 @@ pub fn run_session(
     // Build typed input HashMap — all inputs are i64 tensors (Pitfall 3)
     let mut inputs: HashMap<&str, Value<ort::value::TensorValueType<i64>>> = HashMap::new();
     inputs.insert("input_ids", Value::from_array(tokenized.input_ids.view())?);
-    inputs.insert(
-        "attention_mask",
-        Value::from_array(tokenized.attn_masks.view())?,
-    );
+    if config.with_attention_mask {
+        inputs.insert(
+            "attention_mask",
+            Value::from_array(tokenized.attn_masks.view())?,
+        );
+    }
     if let Some(ref type_ids) = tokenized.type_ids {
         inputs.insert("token_type_ids", Value::from_array(type_ids.view())?);
     }
@@ -42,10 +59,10 @@ pub fn run_session(
     let outputs = session.run(inputs)?;
 
     // Extract the embedding tensor by name from session outputs
-    let tensor_value = outputs.get(config.output_tensor).ok_or_else(|| {
+    let tensor_value = outputs.get(config.output_tensor.as_str()).ok_or_else(|| {
         GteError::Inference(format!(
             "output tensor '{}' not found in model outputs",
-            config.output_tensor
+            &config.output_tensor
         ))
     })?;
 

@@ -5,10 +5,10 @@ module GTE
   # Used by GTE.configure block and GTE.default memoized embedder.
   # Per D-07: pure Ruby pattern, no Rust singleton.
   class Configuration
-    attr_accessor :model_path, :tokenizer_path, :model_family
+    attr_accessor :model_path, :tokenizer_path, :model_config
 
     def initialize
-      @model_family = :e5
+      @model_config = ModelConfig.e5
     end
   end
 
@@ -28,10 +28,12 @@ module GTE
     # Reset with GTE.reset_default! after config changes.
     def default
       @default ||= begin
-        klass = const_get(config.model_family.to_s.upcase)
-        klass.new(
-          model_path: config.model_path,
-          tokenizer_path: config.tokenizer_path
+        resolved_tokenizer = config.tokenizer_path || File.join(File.dirname(config.model_path), "tokenizer.json")
+        mc = config.model_config
+        Embedder.new(
+          resolved_tokenizer, config.model_path,
+          mc.max_length, mc.output_tensor, mc.mode.to_s, mc.with_type_ids,
+          mc.with_attention_mask, mc.num_threads, mc.optimization_level
         )
       end
     end
