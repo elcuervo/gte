@@ -1,7 +1,8 @@
-pub(crate) mod error;
-pub(crate) mod model_config;
-pub(crate) mod tokenizer;
-pub(crate) mod session;
+pub mod error;
+pub mod model_config;
+pub mod tokenizer;
+pub mod session;
+pub mod embedder;
 
 use magnus::{prelude::*, Error, Ruby};
 
