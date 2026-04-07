@@ -8,11 +8,19 @@ publish = false
 build = "build.rs"
 
 [lib]
-crate-type = ["cdylib"]
+# cdylib: Ruby FFI extension; rlib: enables integration tests in tests/ to link as external crate
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# ruby-ffi: gate magnus + rb-sys (Ruby C symbols) so Rust integration tests can link without Ruby.
+# This feature is enabled by default for the cdylib build (rake compile / extconf.rb).
+# When running `cargo test`, this feature must be excluded: `cargo test --no-default-features`.
+default = ["ruby-ffi"]
+ruby-ffi = ["dep:magnus", "dep:rb-sys"]
 
 [dependencies]
-rb-sys = { version = "0.9", features = ["stable-api-compiled-fallback"] }
-magnus = "0.8"
+rb-sys = { version = "0.9", features = ["stable-api-compiled-fallback"], optional = true }
+magnus = { version = "0.8", optional = true }
 ort = { version = "=2.0.0-rc.9", features = ["ndarray"] }
 ort-sys = "=2.0.0-rc.9"
 tokenizers = "0.21.0"
