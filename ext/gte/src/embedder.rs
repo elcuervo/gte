@@ -3,7 +3,7 @@ use ndarray::Array2;
 use ort::session::Session;
 use crate::error::Result;
 use crate::model_config::ModelConfig;
-use crate::tokenizer::Tokenizer;
+use crate::tokenizer::{Tokenized, Tokenizer};
 use crate::session::{build_session, run_session};
 
 /// The main inference orchestrator for Phase 2.
@@ -60,4 +60,28 @@ impl Embedder {
         let embeddings = run_session(&self.session, &tokenized, &self.config)?;
         Ok(embeddings)
     }
+
+    /// Tokenize texts for use with `run()` — split from embed() so the GVL
+    /// can be released between tokenization and inference (per D-01).
+    pub fn tokenize(&self, texts: &[String]) -> crate::error::Result<Tokenized> {
+        self.tokenizer.tokenize(texts.to_vec())
+    }
+
+    /// Run ONNX session on pre-tokenized inputs — this is the call wrapped in rb_thread_call_without_gvl.
+    pub fn run(&self, tokenized: &Tokenized) -> crate::error::Result<Array2<f32>> {
+        run_session(&self.session, tokenized, &self.config)
+    }
+}
+
+/// L2-normalize each row of an embedding matrix in-place.
+/// Per D-08: normalization happens in Rust before FFI return.
+/// If a row's norm is 0.0, leave it unchanged (avoid NaN).
+pub fn normalize_l2(mut embeddings: Array2<f32>) -> Array2<f32> {
+    for mut row in embeddings.rows_mut() {
+        let norm = row.mapv(|x| x * x).sum().sqrt();
+        if norm > 0.0 {
+            row /= norm;
+        }
+    }
+    embeddings
 }
