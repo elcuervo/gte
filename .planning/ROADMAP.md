@@ -49,7 +49,7 @@ Plans:
 Plans:
 - [x] 02-01-PLAN.md — Cargo deps + error.rs + model_config.rs (RUST-03, RUST-05 — contracts)
 - [x] 02-02-PLAN.md — tokenizer.rs + session.rs (RUST-01, RUST-02, RUST-05 — implementations)
-- [ ] 02-03-PLAN.md — embedder.rs + test scaffolding (RUST-03, RUST-04 — integration + tests)
+- [x] 02-03-PLAN.md — embedder.rs + test scaffolding (RUST-03, RUST-04 — integration + tests)
 
 ### Phase 3: Ruby Bindings + API
 **Goal**: Developer can call `GTE::E5.new(model_path:).embed_query(text)` from Ruby, receive an L2-normalized `Array<Float>`, with GVL released during inference and all Rust errors surfaced as `GTE::Error`

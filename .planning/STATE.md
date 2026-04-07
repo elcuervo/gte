@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: verifying
-stopped_at: Completed 02-rust-inference-core-02-PLAN.md
-last_updated: "2026-04-07T02:48:43.535Z"
+stopped_at: Completed 02-rust-inference-core-03-PLAN.md
+last_updated: "2026-04-07T03:02:01.510Z"
 last_activity: 2026-04-07
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
   percent: 50
 ---
 
@@ -55,6 +55,7 @@ Progress: [█████░░░░░] 50%
 | Phase 01 P02 | 5 | 1 tasks | 1 files |
 | Phase 02-rust-inference-core P01 | 98 | 3 tasks | 4 files |
 | Phase 02-rust-inference-core P02 | 4 | 2 tasks | 5 files |
+| Phase 02-rust-inference-core P03 | 10 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,11 @@ Recent decisions affecting current work:
 - [Phase 02-rust-inference-core]: Siglip2 output_tensor is placeholder — must inspect actual ONNX export before integration test
 - [Phase 02-rust-inference-core]: crate::error::Result<T> imported locally in each module rather than re-exported at crate root — prevents shadowing magnus::Error in the init function return type
 - [Phase 02-rust-inference-core]: ort-sys pinned to =2.0.0-rc.9 explicitly in Cargo.toml — ort 2.0.0-rc.9 semver dep resolves to rc.12 which has breaking TLS build script incompatible with ORT_STRATEGY=system
+- [Phase 02-rust-inference-core]: Embedder holds all initialized state (Tokenizer + Session + ModelConfig) — no lazy init, fail-fast at construction
+- [Phase 02-rust-inference-core]: L2 normalization deferred to Phase 3 (Ruby API layer) — Embedder returns raw unnormalized Array2<f32>
+- [Phase 02-rust-inference-core]: ruby-ffi Cargo feature gates magnus+rb-sys: cdylib+rlib crate-type split enables integration tests without Ruby runtime — test command is cargo test --no-default-features
+- [Phase 02-rust-inference-core]: All integration tests #[ignore]: zero-friction CI (no fixtures needed), run with --ignored once fixtures available
+- [Phase 02-rust-inference-core]: ORT_DYLIB_PATH and DYLD_LIBRARY_PATH added to flake.nix shellHook: ORT dylib findable at test runtime on macOS
 
 ### Pending Todos
 
@@ -89,6 +95,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-07T02:48:43.532Z
-Stopped at: Completed 02-rust-inference-core-02-PLAN.md
+Last session: 2026-04-07T03:02:01.506Z
+Stopped at: Completed 02-rust-inference-core-03-PLAN.md
 Resume file: None
