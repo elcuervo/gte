@@ -39,3 +39,20 @@ impl From<ndarray::ShapeError> for GteError {
 
 /// Crate-level Result alias — use `crate::Result<T>` throughout the inference modules
 pub type Result<T> = std::result::Result<T, GteError>;
+
+#[cfg(feature = "ruby-ffi")]
+impl From<GteError> for magnus::Error {
+    fn from(e: GteError) -> Self {
+        use magnus::prelude::*;
+        let ruby = magnus::Ruby::get().expect("From<GteError> called from Ruby thread");
+        // GTE::Error was defined in Phase 1 init() before any methods are registered.
+        // define_module is idempotent — returns existing GTE module without re-defining it.
+        let module = ruby
+            .define_module("GTE")
+            .expect("GTE module must exist");
+        let gte_error_class = module
+            .const_get::<_, magnus::ExceptionClass>("Error")
+            .expect("GTE::Error must be defined before embedder methods are called");
+        magnus::Error::new(gte_error_class, e.to_string())
+    }
+}

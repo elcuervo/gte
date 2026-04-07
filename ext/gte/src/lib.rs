@@ -9,6 +9,9 @@ pub mod embedder;
 // `cargo test --no-default-features`, this block is excluded, allowing Rust integration
 // tests to link without needing a Ruby runtime present.
 #[cfg(feature = "ruby-ffi")]
+mod ruby_embedder;
+
+#[cfg(feature = "ruby-ffi")]
 use magnus::{prelude::*, Error, Ruby};
 
 #[cfg(feature = "ruby-ffi")]
@@ -20,6 +23,9 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     // Per D-08: use exception_standard_error(), NOT exception_runtime_error()
     // StandardError is the correct base — specifically catchable, not ad-hoc
     module.define_error("Error", ruby.exception_standard_error())?;
+
+    // Phase 3: register GTE::Embedder class and methods
+    crate::ruby_embedder::register(ruby)?;
 
     // Install panic hook to prevent undefined behavior when Rust panics
     // cross the FFI boundary. In Phase 1 there are no user-callable Rust methods,
