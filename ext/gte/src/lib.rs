@@ -1,5 +1,7 @@
 pub(crate) mod error;
 pub(crate) mod model_config;
+pub(crate) mod tokenizer;
+pub(crate) mod session;
 
 use magnus::{prelude::*, Error, Ruby};
 
