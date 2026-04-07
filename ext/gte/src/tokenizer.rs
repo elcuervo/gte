@@ -1,7 +1,7 @@
 use std::path::Path;
 use ndarray::Array2;
 use tokenizers::{PaddingParams, PaddingStrategy, TruncationParams};
-use crate::error::GteError;
+use crate::error::{GteError, Result};
 
 /// Output of a batch tokenization — three parallel Array2<i64> tensors.
 pub struct Tokenized {
@@ -33,7 +33,7 @@ impl Tokenizer {
         tokenizer_path: P,
         max_length: usize,
         with_type_ids: bool,
-    ) -> crate::Result<Self> {
+    ) -> Result<Self> {
         let mut tokenizer = tokenizers::Tokenizer::from_file(tokenizer_path)
             .map_err(|e| GteError::Tokenizer(e.to_string()))?;
 
@@ -59,7 +59,7 @@ impl Tokenizer {
     ///
     /// All sequences in the batch are padded to the length of the longest one
     /// (BatchLongest), and truncated to `max_length` if necessary.
-    pub fn tokenize(&self, texts: Vec<String>) -> crate::Result<Tokenized> {
+    pub fn tokenize(&self, texts: Vec<String>) -> Result<Tokenized> {
         let encodings = self
             .tokenizer
             .encode_batch(texts, true)
