@@ -77,7 +77,11 @@ Plans:
   1. A benchmark suite runs at least 3 warm-up iterations before timing and reports GTE throughput exceeding `fastembed` for E5-small on batch size 1
   2. Benchmark results cover batch sizes 1, 8, and 32 texts and GTE leads `fastembed` across all three
   3. Binary gems for `aarch64-apple-darwin` and `x86_64-unknown-linux-gnu` install and run `embed` successfully without requiring a local Rust toolchain
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Benchmark script: GTE vs fastembed throughput comparison (BENCH-01, BENCH-02)
+- [ ] 04-02-PLAN.md — CI native gem verification job
 
 ## Progress
 
@@ -89,4 +93,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Scaffold | 1/2 | In Progress|  |
 | 2. Rust Inference Core | 2/3 | Complete    | 2026-04-07 |
 | 3. Ruby Bindings + API | 2/3 | In Progress|  |
-| 4. Benchmark Validation | 0/? | Not started | - |
+| 4. Benchmark Validation | 0/2 | Not started | - |
