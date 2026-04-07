@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-rust-inference-core-03-PLAN.md
-last_updated: "2026-04-07T10:37:17.561Z"
-last_activity: 2026-04-07 -- Phase 03 execution started
+stopped_at: Completed 03-ruby-bindings-+-api-02-PLAN.md
+last_updated: "2026-04-07T10:55:06.344Z"
+last_activity: 2026-04-07
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 8
-  completed_plans: 5
+  completed_plans: 7
   percent: 50
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 ## Current Position
 
 Phase: 03 (ruby-bindings-+-api) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 03
-Last activity: 2026-04-07 -- Phase 03 execution started
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-04-07
 
 Progress: [█████░░░░░] 50%
 
@@ -56,6 +56,7 @@ Progress: [█████░░░░░] 50%
 | Phase 02-rust-inference-core P01 | 98 | 3 tasks | 4 files |
 | Phase 02-rust-inference-core P02 | 4 | 2 tasks | 5 files |
 | Phase 02-rust-inference-core P03 | 10 | 2 tasks | 7 files |
+| Phase 03-ruby-bindings-+-api P02 | 6 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,9 @@ Recent decisions affecting current work:
 - [Phase 02-rust-inference-core]: ruby-ffi Cargo feature gates magnus+rb-sys: cdylib+rlib crate-type split enables integration tests without Ruby runtime — test command is cargo test --no-default-features
 - [Phase 02-rust-inference-core]: All integration tests #[ignore]: zero-friction CI (no fixtures needed), run with --ignored once fixtures available
 - [Phase 02-rust-inference-core]: ORT_DYLIB_PATH and DYLD_LIBRARY_PATH added to flake.nix shellHook: ORT dylib findable at test runtime on macOS
+- [Phase 03-ruby-bindings-+-api]: Prefix semantics (query: / passage:) implemented in Ruby layer, not Rust — per D-06 decision
+- [Phase 03-ruby-bindings-+-api]: Tokenizer path defaults to tokenizer.json in same directory as model_path — convention over config
+- [Phase 03-ruby-bindings-+-api]: GTE.default uses const_get(config.model_family.upcase) to resolve E5/CLIP/Siglip2 classes dynamically
 
 ### Pending Todos
 
@@ -95,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-07T03:02:01.506Z
-Stopped at: Completed 02-rust-inference-core-03-PLAN.md
+Last session: 2026-04-07T10:55:06.341Z
+Stopped at: Completed 03-ruby-bindings-+-api-02-PLAN.md
 Resume file: None

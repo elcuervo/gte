@@ -34,12 +34,12 @@
 
 ### Ruby API Layer
 
-- [ ] **API-01**: `GTE::E5.new(model_path:)` instantiates an embedder with correct E5 defaults (`output_id: "last_hidden_state"`, CLS extraction, `token_type_ids: true`)
-- [ ] **API-02**: `GTE::CLIP.new(model_path:)` instantiates an embedder with correct CLIP defaults (`output_id: "text_embeds"`, Raw extraction, `token_type_ids: false`)
-- [ ] **API-03**: `GTE::Siglip2.new(model_path:)` instantiates an embedder with Siglip2 defaults (output tensor TBD from model inspection)
-- [ ] **API-04**: `GTE::E5#embed_query(text)` prepends `"query: "` prefix before embedding
-- [ ] **API-05**: `GTE::E5#embed_passage(text)` prepends `"passage: "` prefix before embedding
-- [ ] **API-06**: `GTE.configure { |c| c.model_path = "..." }` sets global defaults; `GTE.default` returns a memoized default embedder
+- [x] **API-01**: `GTE::E5.new(model_path:)` instantiates an embedder with correct E5 defaults (`output_id: "last_hidden_state"`, CLS extraction, `token_type_ids: true`)
+- [x] **API-02**: `GTE::CLIP.new(model_path:)` instantiates an embedder with correct CLIP defaults (`output_id: "text_embeds"`, Raw extraction, `token_type_ids: false`)
+- [x] **API-03**: `GTE::Siglip2.new(model_path:)` instantiates an embedder with Siglip2 defaults (output tensor TBD from model inspection)
+- [x] **API-04**: `GTE::E5#embed_query(text)` prepends `"query: "` prefix before embedding
+- [x] **API-05**: `GTE::E5#embed_passage(text)` prepends `"passage: "` prefix before embedding
+- [x] **API-06**: `GTE.configure { |c| c.model_path = "..." }` sets global defaults; `GTE.default` returns a memoized default embedder
 - [x] **API-07**: Embedding output is L2-normalized by default (enables cosine similarity via dot product)
 
 ### Benchmark Validation
@@ -92,12 +92,12 @@
 | BIND-02 | Phase 3 | Complete |
 | BIND-03 | Phase 3 | Complete |
 | BIND-04 | Phase 3 | Complete |
-| API-01 | Phase 3 | Pending |
-| API-02 | Phase 3 | Pending |
-| API-03 | Phase 3 | Pending |
-| API-04 | Phase 3 | Pending |
-| API-05 | Phase 3 | Pending |
-| API-06 | Phase 3 | Pending |
+| API-01 | Phase 3 | Complete |
+| API-02 | Phase 3 | Complete |
+| API-03 | Phase 3 | Complete |
+| API-04 | Phase 3 | Complete |
+| API-05 | Phase 3 | Complete |
+| API-06 | Phase 3 | Complete |
 | API-07 | Phase 3 | Complete |
 | BENCH-01 | Phase 4 | Pending |
 | BENCH-02 | Phase 4 | Pending |
