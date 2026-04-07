@@ -44,7 +44,12 @@ Plans:
   2. A Rust integration test runs an E5 ONNX session and returns embeddings that match Python sentence-transformers reference output within float32 tolerance
   3. A Rust integration test confirms that inputs exceeding model max token length (512 E5 / 77 CLIP / 64 Siglip2) are truncated without error
   4. All three model families (E5, CLIP, Siglip2) have a `ModelConfig` that drives correct output extraction via `ExtractorMode`
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Cargo deps + error.rs + model_config.rs (RUST-03, RUST-05 — contracts)
+- [ ] 02-02-PLAN.md — tokenizer.rs + session.rs (RUST-01, RUST-02, RUST-05 — implementations)
+- [ ] 02-03-PLAN.md — embedder.rs + test scaffolding (RUST-03, RUST-04 — integration + tests)
 
 ### Phase 3: Ruby Bindings + API
 **Goal**: Developer can call `GTE::E5.new(model_path:).embed_query(text)` from Ruby, receive an L2-normalized `Array<Float>`, with GVL released during inference and all Rust errors surfaced as `GTE::Error`
@@ -78,6 +83,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Scaffold | 1/2 | In Progress|  |
-| 2. Rust Inference Core | 0/? | Not started | - |
+| 2. Rust Inference Core | 0/3 | Not started | - |
 | 3. Ruby Bindings + API | 0/? | Not started | - |
 | 4. Benchmark Validation | 0/? | Not started | - |
