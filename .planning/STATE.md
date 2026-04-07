@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 03-ruby-bindings-+-api-01-PLAN.md
-last_updated: "2026-04-07T10:46:32.746Z"
-last_activity: 2026-04-07
+status: executing
+stopped_at: Completed 02-rust-inference-core-03-PLAN.md
+last_updated: "2026-04-07T10:37:17.561Z"
+last_activity: 2026-04-07 -- Phase 03 execution started
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 8
-  completed_plans: 6
+  completed_plans: 5
   percent: 50
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-06)
 
 **Core value:** Generate text embeddings faster than `fastembed` for E5, Siglip2, and CLIP — with a minimal, ergonomic Ruby API backed by Rust
-**Current focus:** Phase 1 — Scaffold
+**Current focus:** Phase 03 — ruby-bindings-+-api
 
 ## Current Position
 
-Phase: 3 of 4 (ruby bindings + api)
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-04-07
+Phase: 03 (ruby-bindings-+-api) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 03
+Last activity: 2026-04-07 -- Phase 03 execution started
 
 Progress: [█████░░░░░] 50%
 
@@ -56,7 +56,6 @@ Progress: [█████░░░░░] 50%
 | Phase 02-rust-inference-core P01 | 98 | 3 tasks | 4 files |
 | Phase 02-rust-inference-core P02 | 4 | 2 tasks | 5 files |
 | Phase 02-rust-inference-core P03 | 10 | 2 tasks | 7 files |
-| Phase 03-ruby-bindings-+-api P01 | 7 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -84,9 +83,6 @@ Recent decisions affecting current work:
 - [Phase 02-rust-inference-core]: ruby-ffi Cargo feature gates magnus+rb-sys: cdylib+rlib crate-type split enables integration tests without Ruby runtime — test command is cargo test --no-default-features
 - [Phase 02-rust-inference-core]: All integration tests #[ignore]: zero-friction CI (no fixtures needed), run with --ignored once fixtures available
 - [Phase 02-rust-inference-core]: ORT_DYLIB_PATH and DYLD_LIBRARY_PATH added to flake.nix shellHook: ORT dylib findable at test runtime on macOS
-- [Phase 03-ruby-bindings-+-api]: Use Module::const_get to look up GTE::Error ExceptionClass — class_path does not exist in magnus 0.8.2
-- [Phase 03-ruby-bindings-+-api]: GVL release via unsafe extern C fn (run_without_gvl) wrapping only session.run — tokenization stays within GVL (tokenizer internals may not be Send)
-- [Phase 03-ruby-bindings-+-api]: rake/extensiontask added to Rakefile — was missing despite rake-compiler in Gemfile
 
 ### Pending Todos
 
@@ -99,6 +95,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-07T10:46:32.742Z
-Stopped at: Completed 03-ruby-bindings-+-api-01-PLAN.md
+Last session: 2026-04-07T03:02:01.506Z
+Stopped at: Completed 02-rust-inference-core-03-PLAN.md
 Resume file: None
