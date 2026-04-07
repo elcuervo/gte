@@ -62,8 +62,12 @@ Plans:
   4. `GTE::CLIP.new(model_path:)` and `GTE::Siglip2.new(model_path:)` instantiate with correct per-family defaults without requiring explicit config
   5. `GTE.configure { |c| c.model_path = "..." }` sets global defaults and `GTE.default` returns a memoized embedder instance
   6. Embedding output vectors are L2-normalized by default (dot product of two embeddings equals cosine similarity)
-**Plans**: TBD
-**UI hint**: no
+**Plans**: 3 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Rust FFI layer: RbEmbedder #[wrap], GVL release, L2 normalization, error conversion (BIND-01, BIND-02, BIND-03, BIND-04, API-07)
+- [ ] 03-02-PLAN.md — Pure Ruby API layer: E5/CLIP/Siglip2 family classes, configuration, embedder_spec with correctness tests (API-01, API-02, API-03, API-04, API-05, API-06)
+- [ ] 03-03-PLAN.md — RSpec suite for Ruby API layer: e5_spec, clip_spec, siglip2_spec, configuration_spec (API-01, API-02, API-03, API-04, API-05, API-06)
 
 ### Phase 4: Benchmark Validation
 **Goal**: GTE embedding throughput is demonstrably faster than the `fastembed` gem at batch sizes 1, 8, and 32, validated with correct warm-up methodology, and the gem packages as a native binary for all target architectures
@@ -84,5 +88,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Scaffold | 1/2 | In Progress|  |
 | 2. Rust Inference Core | 2/3 | Complete    | 2026-04-07 |
-| 3. Ruby Bindings + API | 0/? | Not started | - |
+| 3. Ruby Bindings + API | 0/3 | Not started | - |
 | 4. Benchmark Validation | 0/? | Not started | - |
