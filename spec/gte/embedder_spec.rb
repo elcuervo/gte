@@ -90,9 +90,4 @@ RSpec.describe "GTE::Embedder" do
     end
   end
 
-  context "without model fixture", unless: GTE_FIXTURES_AVAILABLE do
-    it "fixture tests skipped — set GTE_MODEL_DIR to enable" do
-      skip "Set GTE_MODEL_DIR environment variable to run fixture-dependent tests"
-    end
-  end
 end

@@ -1,10 +1,8 @@
 # frozen_string_literal: true
 
-require_relative "lib/gte/version"
-
 Gem::Specification.new do |spec|
   spec.name          = "gte"
-  spec.version       = GTE::VERSION
+  spec.version       = File.read(File.expand_path("VERSION", __dir__)).strip
   spec.license       = "MIT"
   spec.summary       = "Fast text embeddings via Rust + ONNX Runtime"
   spec.authors       = ["elcuervo"]

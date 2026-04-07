@@ -1,8 +1,8 @@
+pub mod embedder;
 pub mod error;
 pub mod model_config;
-pub mod tokenizer;
 pub mod session;
-pub mod embedder;
+pub mod tokenizer;
 
 // Magnus Ruby FFI entrypoint — only compiled when the "ruby-ffi" feature is active.
 // The ruby-ffi feature gates magnus + rb-sys (Ruby C symbols). When running

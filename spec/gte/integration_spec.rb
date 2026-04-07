@@ -140,6 +140,18 @@ RSpec.describe "Integration" do
     end
   end
 
+  # -- Unsupported Model Inputs -----------------------------------------------
+  context "unsupported multimodal model inputs", if: GTE_CLIP_MULTIMODAL_AVAILABLE do
+    it "fails fast with actionable error when model requires pixel_values" do
+      expect {
+        GTE.new(GTE_CLIP_MULTIMODAL_DIR)
+      }.to raise_error(
+        GTE::Error,
+        /pixel_values.*text_model\.onnx|text_model\.onnx.*pixel_values/i
+      )
+    end
+  end
+
   # -- Performance Baseline --------------------------------------------------
   context "performance baseline", if: GTE_E5_AVAILABLE do
     let(:model) { GTE.new(GTE_E5_DIR) }
@@ -162,16 +174,4 @@ RSpec.describe "Integration" do
     end
   end
 
-  # -- Fixture guards --------------------------------------------------------
-  context "without E5 fixture", unless: GTE_E5_AVAILABLE do
-    it("skipped — set GTE_MODEL_DIR") { skip }
-  end
-
-  context "without CLIP fixture", unless: GTE_CLIP_AVAILABLE do
-    it("skipped — set GTE_CLIP_DIR") { skip }
-  end
-
-  context "without Siglip2 fixture", unless: GTE_SIGLIP2_AVAILABLE do
-    it("skipped — set GTE_SIGLIP2_DIR") { skip }
-  end
 end

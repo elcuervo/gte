@@ -19,6 +19,11 @@
             git
             onnxruntime
             pkg-config
+            (python3.withPackages (ps: with ps; [
+              numpy
+              onnxruntime
+              tokenizers
+            ]))
           ];
 
           shellHook = ''

@@ -1,11 +1,11 @@
-use std::collections::HashMap;
-use std::path::Path;
-use ndarray::{Array2, Ix2};
-use ort::session::Session;
-use ort::value::Value;
 use crate::error::{GteError, Result};
 use crate::model_config::{ExtractorMode, ModelConfig};
 use crate::tokenizer::Tokenized;
+use ndarray::{Array2, Ix2};
+use ort::session::Session;
+use ort::value::Value;
+use std::collections::HashMap;
+use std::path::Path;
 
 /// Create an ORT inference session from a local ONNX model file.
 ///
@@ -72,38 +72,75 @@ pub fn run_session(
     let embeddings: Array2<f32> = match config.mode {
         ExtractorMode::Token(idx) => {
             // Shape: [batch, seq, dim] — take token at idx (usually 0 = CLS)
+            let shape = array.shape();
+            if shape.len() != 3 || idx >= shape[1] {
+                return Err(GteError::Inference(format!(
+                    "token extraction index {} out of bounds for output shape {:?}",
+                    idx, shape
+                )));
+            }
             let slice = array.slice(ndarray::s![.., idx, ..]);
             slice.into_owned()
         }
         ExtractorMode::MeanPool => {
             // Shape: [batch, seq, dim] — mean pool using attention mask
             let shape = array.shape();
+            if shape.len() != 3 {
+                return Err(GteError::Inference(format!(
+                    "mean pooling requires rank-3 output, got shape {:?}",
+                    shape
+                )));
+            }
             let (batch, seq, dim) = (shape[0], shape[1], shape[2]);
             let mask = &tokenized.attn_masks; // [batch, seq] i64
             let mut result = Array2::<f32>::zeros((batch, dim));
-            // Use contiguous slice access for cache-friendly iteration
-            let array_slice = array.as_slice().expect("contiguous tensor");
-            let mask_slice = mask.as_slice().expect("contiguous mask");
-            for b in 0..batch {
-                let mask_base = b * seq;
-                let hidden_base = b * seq * dim;
-                let mut sum_mask: f32 = 0.0;
-                let result_row = &mut result.as_slice_mut().expect("contiguous result")[b * dim..(b + 1) * dim];
-                for s in 0..seq {
-                    let m = mask_slice[mask_base + s];
-                    if m > 0 {
-                        let mf = m as f32;
-                        let tok_base = hidden_base + s * dim;
-                        for d in 0..dim {
-                            result_row[d] += array_slice[tok_base + d] * mf;
+            // Fast path for contiguous arrays, fallback to indexed path otherwise.
+            if let (Some(array_slice), Some(mask_slice), Some(result_slice)) = (
+                array.as_slice_memory_order(),
+                mask.as_slice_memory_order(),
+                result.as_slice_memory_order_mut(),
+            ) {
+                for b in 0..batch {
+                    let mask_base = b * seq;
+                    let hidden_base = b * seq * dim;
+                    let mut sum_mask: f32 = 0.0;
+                    let result_row = &mut result_slice[b * dim..(b + 1) * dim];
+                    for s in 0..seq {
+                        let m = mask_slice[mask_base + s];
+                        if m > 0 {
+                            let mf = m as f32;
+                            let tok_base = hidden_base + s * dim;
+                            for d in 0..dim {
+                                result_row[d] += array_slice[tok_base + d] * mf;
+                            }
+                            sum_mask += mf;
                         }
-                        sum_mask += mf;
+                    }
+                    if sum_mask > 0.0 {
+                        let inv = 1.0 / sum_mask;
+                        for d in 0..dim {
+                            result_row[d] *= inv;
+                        }
                     }
                 }
-                if sum_mask > 0.0 {
-                    let inv = 1.0 / sum_mask;
-                    for d in 0..dim {
-                        result_row[d] *= inv;
+            } else {
+                for b in 0..batch {
+                    let mut sum_mask: f32 = 0.0;
+                    for s in 0..seq {
+                        let m = mask[[b, s]];
+                        if m > 0 {
+                            let mf = m as f32;
+                            for d in 0..dim {
+                                result[[b, d]] += array[[b, s, d]] * mf;
+                            }
+                            sum_mask += mf;
+                        }
+                    }
+                    if sum_mask > 0.0 {
+                        let inv = 1.0 / sum_mask;
+                        for d in 0..dim {
+                            result[[b, d]] *= inv;
+                        }
                     }
                 }
             }

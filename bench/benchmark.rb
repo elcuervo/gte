@@ -6,13 +6,24 @@ require "gte"
 
 BATCH_SIZES = [1, 8, 32, 128].freeze
 
+def materialize_embeddings(result)
+  return result if result.is_a?(Array)
+  return result.to_a if result.respond_to?(:to_a)
+
+  result
+end
+
+def embed_once(model, texts)
+  materialize_embeddings(model.embed(texts))
+end
+
 def latency_stats(model, texts, iterations: 20)
   # Warmup
-  model.embed(texts)
+  embed_once(model, texts)
 
   times = iterations.times.map do
     start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    model.embed(texts)
+    embed_once(model, texts)
     (Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000
   end.sort
 

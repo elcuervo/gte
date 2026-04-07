@@ -1,7 +1,7 @@
-use std::path::Path;
-use ndarray::Array2;
-use tokenizers::{PaddingParams, PaddingStrategy, TruncationParams};
 use crate::error::{GteError, Result};
+use ndarray::Array2;
+use std::path::Path;
+use tokenizers::{PaddingParams, PaddingStrategy, TruncationParams};
 
 /// Output of a batch tokenization — three parallel Array2<i64> tensors.
 pub struct Tokenized {

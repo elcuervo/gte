@@ -1,11 +1,12 @@
 #![cfg(feature = "ruby-ffi")]
 
-use std::os::raw::c_void;
-use std::sync::Arc;
-use magnus::{function, method, prelude::*, wrap, Error, RArray, Ruby};
-use crate::embedder::{Embedder, normalize_l2};
-use crate::tokenizer::Tokenized;
+use crate::embedder::{normalize_l2, Embedder};
 use crate::error::GteError;
+use crate::tokenizer::Tokenized;
+use magnus::{function, method, prelude::*, wrap, Error, RArray, Ruby};
+use std::os::raw::c_void;
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::Arc;
 
 #[wrap(class = "GTE::Embedder", free_immediately, size)]
 pub struct RbEmbedder {
@@ -23,10 +24,27 @@ struct InferArgs {
 // the duration of the call.
 unsafe impl Send for InferArgs {}
 
+fn panic_payload_to_string(payload: Box<dyn std::any::Any + Send>) -> String {
+    if let Some(msg) = payload.downcast_ref::<&str>() {
+        (*msg).to_string()
+    } else if let Some(msg) = payload.downcast_ref::<String>() {
+        msg.clone()
+    } else {
+        "unknown panic payload".to_string()
+    }
+}
+
 unsafe extern "C" fn run_without_gvl(ptr: *mut c_void) -> *mut c_void {
     // NEVER call Ruby API here — no GVL held.
     let args = &mut *(ptr as *mut InferArgs);
-    args.result = Some((*args.embedder).run(&*args.tokenized));
+    let run_result = catch_unwind(AssertUnwindSafe(|| (*args.embedder).run(&*args.tokenized)));
+    args.result = Some(match run_result {
+        Ok(result) => result,
+        Err(payload) => Err(GteError::Inference(format!(
+            "panic during inference: {}",
+            panic_payload_to_string(payload),
+        ))),
+    });
     std::ptr::null_mut()
 }
 
@@ -39,14 +57,19 @@ impl RbEmbedder {
     ) -> Result<Self, Error> {
         let embedder = Embedder::from_dir(dir_path, num_threads, optimization_level)
             .map_err(magnus::Error::from)?;
-        Ok(RbEmbedder { inner: Arc::new(embedder) })
+        Ok(RbEmbedder {
+            inner: Arc::new(embedder),
+        })
     }
 
     pub fn rb_embed(ruby: &Ruby, rb_self: &Self, texts: RArray) -> Result<RArray, Error> {
         let texts: Vec<String> = texts.to_vec()?;
 
         // Tokenize within GVL — tokenizer internals may not be Send (D-01)
-        let tokenized = rb_self.inner.tokenize(&texts).map_err(magnus::Error::from)?;
+        let tokenized = rb_self
+            .inner
+            .tokenize(&texts)
+            .map_err(magnus::Error::from)?;
 
         // Release GVL for ORT inference only (D-02, D-03)
         let embeddings = unsafe {
@@ -58,10 +81,15 @@ impl RbEmbedder {
             rb_sys::rb_thread_call_without_gvl(
                 Some(run_without_gvl),
                 &mut args as *mut InferArgs as *mut c_void,
-                None,          // ubf: no cancellation — inference is milliseconds
+                None, // ubf: no cancellation — inference is milliseconds
                 std::ptr::null_mut(),
             );
-            args.result.unwrap().map_err(magnus::Error::from)?
+            let result = args.result.take().ok_or_else(|| {
+                magnus::Error::from(GteError::Inference(
+                    "inference did not return a result".to_string(),
+                ))
+            })?;
+            result.map_err(magnus::Error::from)?
         };
 
         // L2 normalize (D-08) then convert to Ruby Array<Array<Float>>
