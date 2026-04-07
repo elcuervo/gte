@@ -4,7 +4,6 @@ use std::os::raw::c_void;
 use std::sync::Arc;
 use magnus::{function, method, prelude::*, wrap, Error, RArray, Ruby};
 use crate::embedder::{Embedder, normalize_l2};
-use crate::model_config::ModelConfig;
 use crate::tokenizer::Tokenized;
 use crate::error::GteError;
 
@@ -33,47 +32,12 @@ unsafe extern "C" fn run_without_gvl(ptr: *mut c_void) -> *mut c_void {
 
 impl RbEmbedder {
     pub fn rb_new(
-        ruby: &Ruby,
-        tokenizer_path: String,
-        model_path: String,
-        max_length: usize,
-        output_tensor: String,
-        mode: String,
-        with_type_ids: bool,
-        with_attention_mask: bool,
+        _ruby: &Ruby,
+        dir_path: String,
         num_threads: usize,
         optimization_level: u8,
     ) -> Result<Self, Error> {
-        use crate::model_config::ExtractorMode;
-
-        let extractor_mode = match mode.as_str() {
-            "mean_pool" => ExtractorMode::MeanPool,
-            "raw"       => ExtractorMode::Raw,
-            "cls"       => ExtractorMode::Token(0),
-            other if other.starts_with("token:") => {
-                let idx: usize = other[6..].parse().map_err(|_| Error::new(
-                    ruby.exception_arg_error(),
-                    format!("invalid token index in mode '{}': expected 'token:N'", other),
-                ))?;
-                ExtractorMode::Token(idx)
-            }
-            other => return Err(Error::new(
-                ruby.exception_arg_error(),
-                format!("unknown mode '{}': expected 'mean_pool', 'raw', 'cls', or 'token:N'", other),
-            )),
-        };
-
-        let config = ModelConfig {
-            max_length,
-            output_tensor,
-            mode: extractor_mode,
-            with_type_ids,
-            with_attention_mask,
-            num_threads,
-            optimization_level,
-        };
-
-        let embedder = Embedder::new(tokenizer_path, model_path, config)
+        let embedder = Embedder::from_dir(dir_path, num_threads, optimization_level)
             .map_err(magnus::Error::from)?;
         Ok(RbEmbedder { inner: Arc::new(embedder) })
     }
@@ -121,7 +85,7 @@ fn array2_to_rarray(ruby: &Ruby, arr: ndarray::Array2<f32>) -> Result<RArray, Er
 pub fn register(ruby: &Ruby) -> Result<(), Error> {
     let module = ruby.define_module("GTE")?;
     let class = module.define_class("Embedder", ruby.class_object())?;
-    class.define_singleton_method("new", function!(RbEmbedder::rb_new, 9))?;
+    class.define_singleton_method("new", function!(RbEmbedder::rb_new, 3))?;
     class.define_method("embed", method!(RbEmbedder::rb_embed, 1))?;
     Ok(())
 }

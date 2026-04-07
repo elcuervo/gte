@@ -6,25 +6,25 @@ require "gte"
 
 BATCH_SIZES = [1, 8, 32, 128].freeze
 
-def latency_stats(embedder, texts, iterations: 20)
+def latency_stats(model, texts, iterations: 20)
   # Warmup
-  embedder.embed(texts)
+  model.embed(texts)
 
   times = iterations.times.map do
     start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    embedder.embed(texts)
+    model.embed(texts)
     (Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000
   end.sort
 
   { median: times[times.length / 2], p95: times[(times.length * 0.95).floor], p99: times[(times.length * 0.99).floor] }
 end
 
-def run_latency(name, embedder)
+def run_latency(name, model)
   puts "\n#{name} — Latency"
   puts "-" * 60
   BATCH_SIZES.each do |size|
     texts = Array.new(size) { |i| "This is benchmark text number #{i} for embedding" }
-    stats = latency_stats(embedder, texts)
+    stats = latency_stats(model, texts)
     printf "  batch=%3d  median=%7.2fms  p95=%7.2fms  p99=%7.2fms  per_item=%6.2fms\n",
            size, stats[:median], stats[:p95], stats[:p99], stats[:median] / size
   end
@@ -34,40 +34,48 @@ puts "GTE Ruby Benchmark"
 puts "=" * 60
 
 # E5
-if (e5_path = ENV["GTE_MODEL_PATH"])
-  e5 = GTE::E5.new(model_path: e5_path)
+if (e5_dir = ENV["GTE_MODEL_DIR"])
+  e5 = GTE.new(e5_dir)
   run_latency("E5", e5)
+
+  # Print first embedding values for comparison with Python
+  probe = ["query: benchmark validation probe"]
+  emb = e5.embed(probe).first
+  puts "\n  E5 first 5 values: #{emb.first(5).map { |v| v.round(6) }}"
 end
 
 # CLIP
-if (clip_path = ENV["GTE_CLIP_MODEL_PATH"])
-  clip_tok = ENV["GTE_CLIP_TOKENIZER_PATH"]
-  clip = GTE::CLIP.new(model_path: clip_path, tokenizer_path: clip_tok)
+if (clip_dir = ENV["GTE_CLIP_DIR"])
+  clip = GTE.new(clip_dir)
   run_latency("CLIP", clip)
+
+  emb = clip.embed(["a photo of a cat"]).first
+  puts "\n  CLIP first 5 values: #{emb.first(5).map { |v| v.round(6) }}"
 end
 
 # Siglip2
-if (siglip2_path = ENV["GTE_SIGLIP2_MODEL_PATH"])
-  siglip2_tok = ENV["GTE_SIGLIP2_TOKENIZER_PATH"]
-  siglip2 = GTE::Siglip2.new(model_path: siglip2_path, tokenizer_path: siglip2_tok)
+if (siglip2_dir = ENV["GTE_SIGLIP2_DIR"])
+  siglip2 = GTE.new(siglip2_dir)
   run_latency("Siglip2", siglip2)
+
+  emb = siglip2.embed(["a photo of a cat"]).first
+  puts "\n  Siglip2 first 5 values: #{emb.first(5).map { |v| v.round(6) }}"
 end
 
 # fastembed comparison (if both available)
 begin
   require "fastembed"
 
-  if e5_path
-    model_dir = ENV.fetch("MODEL_DIR", File.dirname(e5_path))
+  if e5_dir
     fe_model = Fastembed::TextEmbedding.new(
-      local_model_dir: model_dir,
-      model_file: File.basename(e5_path),
+      local_model_dir: e5_dir,
+      model_file: "onnx/model.onnx",
       tokenizer_file: "tokenizer.json"
     )
 
     # Validate same output
     probe = ["query: benchmark validation probe"]
-    gte_emb = GTE::E5.new(model_path: e5_path).embed(probe).first
+    gte_emb = e5.embed(probe).first
     fe_emb = fe_model.embed(probe).first
 
     if gte_emb.size == fe_emb.size
@@ -81,11 +89,10 @@ begin
     [1, 8, 32].each do |size|
       texts = Array.new(size) { |i| "query: the quick brown fox #{i}" }
       puts "\nBatch size: #{size}"
-      gte_model = GTE::E5.new(model_path: e5_path)
       Benchmark.ips do |x|
         x.warmup = 3
         x.time = 8
-        x.report("gte")       { gte_model.embed(texts) }
+        x.report("gte")       { e5.embed(texts) }
         x.report("fastembed") { fe_model.embed(texts).to_a }
         x.compare!
       end
