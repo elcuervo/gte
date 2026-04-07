@@ -19,8 +19,8 @@
 
 ### Core Embedding (Rust)
 
-- [ ] **RUST-01**: Rust pipeline tokenizes a batch of strings using HuggingFace `tokenizers` crate loaded from a local `tokenizer.json` file
-- [ ] **RUST-02**: Rust pipeline runs an ONNX model session via `ort` v2 with correct input tensors (`input_ids`, `attention_mask`, and optional `token_type_ids`/`position_ids`)
+- [x] **RUST-01**: Rust pipeline tokenizes a batch of strings using HuggingFace `tokenizers` crate loaded from a local `tokenizer.json` file
+- [x] **RUST-02**: Rust pipeline runs an ONNX model session via `ort` v2 with correct input tensors (`input_ids`, `attention_mask`, and optional `token_type_ids`/`position_ids`)
 - [x] **RUST-03**: Rust pipeline extracts embeddings from output tensor using configurable extraction mode (CLS token or Raw)
 - [ ] **RUST-04**: Rust pipeline is validated against real ONNX model files via Rust integration tests before Ruby bindings are added
 - [x] **RUST-05**: Long inputs are truncated at model max token length (512 for E5, 77 for CLIP, 64 for Siglip2) without error
@@ -83,8 +83,8 @@
 | SCAF-04 | Phase 1 | Complete |
 | SCAF-05 | Phase 1 | Complete |
 | SCAF-06 | Phase 1 | Complete |
-| RUST-01 | Phase 2 | Pending |
-| RUST-02 | Phase 2 | Pending |
+| RUST-01 | Phase 2 | Complete |
+| RUST-02 | Phase 2 | Complete |
 | RUST-03 | Phase 2 | Complete |
 | RUST-04 | Phase 2 | Pending |
 | RUST-05 | Phase 2 | Complete |
