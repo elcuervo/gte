@@ -13,4 +13,13 @@ fn main() {
     );
 
     println!("cargo:rerun-if-changed=../../VERSION");
+
+    // Ensure the ORT shared library can be found at runtime via @rpath on macOS.
+    // ORT_LIB_LOCATION is set by the Nix dev shell when ORT_STRATEGY=system.
+    if let Ok(ort_lib) = std::env::var("ORT_LIB_LOCATION") {
+        let lib_dir = std::path::Path::new(&ort_lib).join("lib");
+        if lib_dir.exists() {
+            println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib_dir.display());
+        }
+    }
 }

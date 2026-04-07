@@ -51,13 +51,46 @@ pub fn run_session(
 
     let array = tensor_value.try_extract_tensor::<f32>()?;
 
-    // Apply extraction mode: CLS token (rank-3 → rank-2) or Raw (rank-2 already)
-    // Pitfall 5: Token(idx) requires rank-3 output; E5's last_hidden_state is confirmed rank-3
+    // Apply extraction mode based on model config
     let embeddings: Array2<f32> = match config.mode {
         ExtractorMode::Token(idx) => {
             // Shape: [batch, seq, dim] — take token at idx (usually 0 = CLS)
             let slice = array.slice(ndarray::s![.., idx, ..]);
             slice.into_owned()
+        }
+        ExtractorMode::MeanPool => {
+            // Shape: [batch, seq, dim] — mean pool using attention mask
+            let shape = array.shape();
+            let (batch, seq, dim) = (shape[0], shape[1], shape[2]);
+            let mask = &tokenized.attn_masks; // [batch, seq] i64
+            let mut result = Array2::<f32>::zeros((batch, dim));
+            // Use contiguous slice access for cache-friendly iteration
+            let array_slice = array.as_slice().expect("contiguous tensor");
+            let mask_slice = mask.as_slice().expect("contiguous mask");
+            for b in 0..batch {
+                let mask_base = b * seq;
+                let hidden_base = b * seq * dim;
+                let mut sum_mask: f32 = 0.0;
+                let result_row = &mut result.as_slice_mut().expect("contiguous result")[b * dim..(b + 1) * dim];
+                for s in 0..seq {
+                    let m = mask_slice[mask_base + s];
+                    if m > 0 {
+                        let mf = m as f32;
+                        let tok_base = hidden_base + s * dim;
+                        for d in 0..dim {
+                            result_row[d] += array_slice[tok_base + d] * mf;
+                        }
+                        sum_mask += mf;
+                    }
+                }
+                if sum_mask > 0.0 {
+                    let inv = 1.0 / sum_mask;
+                    for d in 0..dim {
+                        result_row[d] *= inv;
+                    }
+                }
+            }
+            result
         }
         ExtractorMode::Raw => {
             // Shape: [batch, dim] — already pooled

@@ -5,25 +5,47 @@ require "benchmark/ips"
 require "gte"
 require "fastembed"
 
-model_path = ENV.fetch("MODEL_PATH") { abort "Set MODEL_PATH to E5-small ONNX directory" }
+model_dir = ENV.fetch("MODEL_DIR") { abort "Set MODEL_DIR to E5-small ONNX directory (e.g. tmp/multilingual-e5-small)" }
+model_file = File.join(model_dir, "onnx", "model.onnx")
+tokenizer_file = File.join(model_dir, "tokenizer.json")
 
-# Initialize models
-gte_model = GTE::E5.new(model_path: model_path)
-fe_model = Fastembed::TextEmbedding.new(model_name: "intfloat/multilingual-e5-small")
+abort "Model not found: #{model_file}" unless File.exist?(model_file)
+abort "Tokenizer not found: #{tokenizer_file}" unless File.exist?(tokenizer_file)
 
-# Sanity check: verify embedding dimensions match
-gte_dim = gte_model.embed(["query: test"]).first.size
-fe_dim = fe_model.embed(["query: test"]).first.size
-puts "GTE dimension: #{gte_dim}, Fastembed dimension: #{fe_dim}"
-abort "Dimension mismatch! GTE=#{gte_dim} vs Fastembed=#{fe_dim}" if gte_dim != fe_dim
+puts "=== Same-model validation ==="
+puts "Model:     #{model_file}"
+puts "Tokenizer: #{tokenizer_file}"
 
-# Test texts at different batch sizes
+# Both libraries load the EXACT same model and tokenizer files
+gte_model = GTE::E5.new(model_path: model_file, tokenizer_path: tokenizer_file)
+fe_model = Fastembed::TextEmbedding.new(
+  local_model_dir: model_dir,
+  model_file: "onnx/model.onnx",
+  tokenizer_file: "tokenizer.json"
+)
+
+# Validate identical output
+probe = ["query: benchmark validation probe"]
+gte_emb = gte_model.embed(probe).first
+fe_emb = fe_model.embed(probe).first
+
+puts "GTE dim: #{gte_emb.size}, Fastembed dim: #{fe_emb.size}"
+abort "Dimension mismatch! GTE=#{gte_emb.size} vs Fastembed=#{fe_emb.size}" if gte_emb.size != fe_emb.size
+
+cosine = gte_emb.zip(fe_emb).sum { |a, b| a * b }
+max_diff = gte_emb.zip(fe_emb).map { |a, b| (a - b).abs }.max
+puts "Cosine similarity: #{cosine.round(6)}"
+puts "Max absolute diff: #{max_diff}"
+abort "Embeddings diverge! cosine=#{cosine}" if cosine < 0.9999
+
+puts "\n=== Benchmarks ==="
+
 TEXTS_1  = ["query: the quick brown fox"]
 TEXTS_8  = Array.new(8)  { |i| "query: the quick brown fox #{i}" }
 TEXTS_32 = Array.new(32) { |i| "query: the quick brown fox #{i}" }
 
 [TEXTS_1, TEXTS_8, TEXTS_32].each do |texts|
-  puts "\n=== Batch size: #{texts.size} ==="
+  puts "\n--- Batch size: #{texts.size} ---"
 
   Benchmark.ips do |x|
     x.warmup = 5

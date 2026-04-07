@@ -4,6 +4,8 @@
 pub enum ExtractorMode {
     /// Output tensor shape is [batch, seq, dim] — take token at `index` (0 = CLS token)
     Token(usize),
+    /// Output tensor shape is [batch, seq, dim] — mean pool over non-padding tokens using attention mask
+    MeanPool,
     /// Output tensor shape is [batch, dim] — use as-is (already pooled)
     Raw,
 }
@@ -26,13 +28,13 @@ impl ModelConfig {
     /// E5 model family defaults:
     /// - max_length: 512 tokens
     /// - output_tensor: "last_hidden_state" (rank-3: [batch, seq, dim])
-    /// - mode: Token(0) — CLS token extraction
+    /// - mode: MeanPool — mean pooling over attention-masked tokens (matches sentence-transformers)
     /// - with_type_ids: true — E5 BERT-based models need token_type_ids
     pub fn e5() -> Self {
         Self {
             max_length: 512,
             output_tensor: "last_hidden_state",
-            mode: ExtractorMode::Token(0),
+            mode: ExtractorMode::MeanPool,
             with_type_ids: true,
         }
     }
