@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-ruby-bindings-+-api-03-PLAN.md
-last_updated: "2026-04-07T12:33:15.724Z"
+stopped_at: Completed 04-benchmark-validation-01-PLAN.md
+last_updated: "2026-04-07T13:03:53.646Z"
 last_activity: 2026-04-07
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 10
+  completed_plans: 9
   percent: 50
 ---
 
@@ -58,6 +58,7 @@ Progress: [█████░░░░░] 50%
 | Phase 02-rust-inference-core P03 | 10 | 2 tasks | 7 files |
 | Phase 03-ruby-bindings-+-api P02 | 6 | 2 tasks | 8 files |
 | Phase 03-ruby-bindings-+-api P03 | 2 | 2 tasks | 4 files |
+| Phase 04-benchmark-validation P01 | 1 | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -89,6 +90,7 @@ Recent decisions affecting current work:
 - [Phase 03-ruby-bindings-+-api]: Tokenizer path defaults to tokenizer.json in same directory as model_path — convention over config
 - [Phase 03-ruby-bindings-+-api]: GTE.default uses const_get(config.model_family.upcase) to resolve E5/CLIP/Siglip2 classes dynamically
 - [Phase 03-ruby-bindings-+-api]: Spec files require spec_helper for fixture constant access — added to all family specs
+- [Phase 04-benchmark-validation]: 5s warmup + 10s measurement for stable benchmark-ips results
 
 ### Pending Todos
 
@@ -101,6 +103,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-07T12:25:36.307Z
-Stopped at: Completed 03-ruby-bindings-+-api-03-PLAN.md
+Last session: 2026-04-07T13:03:53.642Z
+Stopped at: Completed 04-benchmark-validation-01-PLAN.md
 Resume file: None

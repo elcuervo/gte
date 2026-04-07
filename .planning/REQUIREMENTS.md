@@ -44,8 +44,8 @@
 
 ### Benchmark Validation
 
-- [ ] **BENCH-01**: Embedding throughput for E5-small exceeds `fastembed` gem on equivalent model, measured after warm-up (≥3 warmup iterations before timing)
-- [ ] **BENCH-02**: Benchmark covers batch sizes representative of production use: 1, 8, 32 texts
+- [x] **BENCH-01**: Embedding throughput for E5-small exceeds `fastembed` gem on equivalent model, measured after warm-up (≥3 warmup iterations before timing)
+- [x] **BENCH-02**: Benchmark covers batch sizes representative of production use: 1, 8, 32 texts
 
 ---
 
@@ -99,8 +99,8 @@
 | API-05 | Phase 3 | Complete |
 | API-06 | Phase 3 | Complete |
 | API-07 | Phase 3 | Complete |
-| BENCH-01 | Phase 4 | Pending |
-| BENCH-02 | Phase 4 | Pending |
+| BENCH-01 | Phase 4 | Complete |
+| BENCH-02 | Phase 4 | Complete |
 
 ---
 

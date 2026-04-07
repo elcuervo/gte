@@ -80,7 +80,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Benchmark script: GTE vs fastembed throughput comparison (BENCH-01, BENCH-02)
+- [x] 04-01-PLAN.md — Benchmark script: GTE vs fastembed throughput comparison (BENCH-01, BENCH-02)
 - [ ] 04-02-PLAN.md — CI native gem verification job
 
 ## Progress
@@ -93,4 +93,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Scaffold | 1/2 | In Progress|  |
 | 2. Rust Inference Core | 2/3 | Complete    | 2026-04-07 |
 | 3. Ruby Bindings + API | 2/3 | In Progress|  |
-| 4. Benchmark Validation | 0/2 | Not started | - |
+| 4. Benchmark Validation | 1/2 | In Progress|  |
