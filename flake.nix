@@ -24,6 +24,8 @@
           shellHook = ''
             export ORT_STRATEGY=system
             export ORT_LIB_LOCATION=${pkgs.onnxruntime}
+            export ORT_DYLIB_PATH=${pkgs.onnxruntime}/lib/libonnxruntime.dylib
+            export DYLD_LIBRARY_PATH=${pkgs.onnxruntime}/lib''${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}
           '';
         };
       });

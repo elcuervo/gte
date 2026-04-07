@@ -1,10 +1,17 @@
-pub(crate) mod error;
-pub(crate) mod model_config;
-pub(crate) mod tokenizer;
-pub(crate) mod session;
+pub mod error;
+pub mod model_config;
+pub mod tokenizer;
+pub mod session;
+pub mod embedder;
 
+// Magnus Ruby FFI entrypoint — only compiled when the "ruby-ffi" feature is active.
+// The ruby-ffi feature gates magnus + rb-sys (Ruby C symbols). When running
+// `cargo test --no-default-features`, this block is excluded, allowing Rust integration
+// tests to link without needing a Ruby runtime present.
+#[cfg(feature = "ruby-ffi")]
 use magnus::{prelude::*, Error, Ruby};
 
+#[cfg(feature = "ruby-ffi")]
 #[magnus::init]
 fn init(ruby: &Ruby) -> Result<(), Error> {
     let module = ruby.define_module("GTE")?;
