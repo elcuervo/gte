@@ -67,7 +67,7 @@ Plans:
 Plans:
 - [x] 03-01-PLAN.md — Rust FFI layer: RbEmbedder #[wrap], GVL release, L2 normalization, error conversion (BIND-01, BIND-02, BIND-03, BIND-04, API-07)
 - [x] 03-02-PLAN.md — Pure Ruby API layer: E5/CLIP/Siglip2 family classes, configuration, embedder_spec with correctness tests (API-01, API-02, API-03, API-04, API-05, API-06)
-- [ ] 03-03-PLAN.md — RSpec suite for Ruby API layer: e5_spec, clip_spec, siglip2_spec, configuration_spec (API-01, API-02, API-03, API-04, API-05, API-06)
+- [x] 03-03-PLAN.md — RSpec suite for Ruby API layer: e5_spec, clip_spec, siglip2_spec, configuration_spec (API-01, API-02, API-03, API-04, API-05, API-06)
 
 ### Phase 4: Benchmark Validation
 **Goal**: GTE embedding throughput is demonstrably faster than the `fastembed` gem at batch sizes 1, 8, and 32, validated with correct warm-up methodology, and the gem packages as a native binary for all target architectures
