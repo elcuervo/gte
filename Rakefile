@@ -8,6 +8,8 @@ RSpec::Core::RakeTask.new(:spec)
 
 Rake::ExtensionTask.new("gte") do |ext|
   ext.lib_dir = "lib/gte"
+  ext.cross_compile = true
+  ext.cross_platform = %w[x86_64-linux aarch64-linux arm64-darwin]
 end
 
 task default: [:compile, :spec]
