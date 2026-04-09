@@ -1,6 +1,8 @@
 # gte
+![](https://images.unsplash.com/photo-1551225183-94acb7d595b6?q=80&w=2274&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D)
 
 `gte` is a Ruby gem with a Rust extension for fast text embeddings with ONNX Runtime.
+Inspired by https://github.com/fbilhaut/gte-rs
 
 ## Quick Start
 
