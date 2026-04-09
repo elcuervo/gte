@@ -21,4 +21,40 @@ namespace :bench do
   task :pure_compare do
     run_in_nix("bundle", "exec", "ruby", "bench/pure_ruby_compare.rb")
   end
+
+  desc "Run Puma-like concurrent single-request benchmark (GTE vs pure Ruby)"
+  task :puma_compare do
+    run_in_nix(
+      "bundle", "exec", "ruby", "bench/puma_compare.rb",
+      "--output", "bench/results/puma_compare_latest.json",
+      "--iterations", "80",
+      "--runs", "3"
+    )
+  end
+
+  desc "Run Puma benchmark, append RUNS.md entry, and enforce goal/regression checks"
+  task :record_run do
+    run_in_nix(
+      "bundle", "exec", "ruby", "bench/puma_compare.rb",
+      "--output", "bench/results/puma_compare_latest.json",
+      "--iterations", "80",
+      "--runs", "3"
+    )
+    run_in_nix(
+      "bundle", "exec", "ruby", "bench/runs_ledger.rb", "append",
+      "--result", "bench/results/puma_compare_latest.json"
+    )
+    run_in_nix(
+      "bundle", "exec", "ruby", "bench/runs_ledger.rb", "check",
+      "--result", "bench/results/puma_compare_latest.json"
+    )
+  end
+
+  desc "Validate current Puma benchmark output against 2x goal and regression policy"
+  task :check_goal do
+    run_in_nix(
+      "bundle", "exec", "ruby", "bench/runs_ledger.rb", "check",
+      "--result", "bench/results/puma_compare_latest.json"
+    )
+  end
 end

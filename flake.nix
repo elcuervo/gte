@@ -19,6 +19,7 @@
             cargo-nextest
             git
             jq
+            ripgrep
             hyperfine
             onnxruntime
             pkg-config

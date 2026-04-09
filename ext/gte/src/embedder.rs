@@ -138,24 +138,19 @@ fn tune_num_threads(
         return requested;
     }
 
-    if output_name == "last_hidden_state" && with_attention_mask && !with_type_ids {
-        // Siglip2-like text graphs benefit from moderate intra-op parallelism.
-        return 4;
-    }
+    let family = infer_model_family(with_attention_mask, with_type_ids, output_name);
+    let target_concurrency = puma_target_concurrency();
+    let host_cores = host_parallelism();
+    let budgeted_threads = (host_cores / target_concurrency).max(1);
 
-    // Latency-tuned defaults for known text-embedding graph signatures.
-    if output_name == "text_embeds" && !with_attention_mask {
-        // CLIP text head (rank-2 output, ids-only input) tends to benefit from light parallelism.
-        return 4;
+    match family {
+        // Puma-like workloads typically run many concurrent single-item requests where
+        // one intra-op thread per request gives the best tail behavior.
+        ModelFamily::E5Like | ModelFamily::ClipLike | ModelFamily::SiglipLike => {
+            budgeted_threads.min(1)
+        }
+        ModelFamily::Other => 0,
     }
-
-    if output_name == "last_hidden_state" && with_attention_mask && with_type_ids {
-        // E5-like request-lifecycle workloads (rapid single-item calls) favor moderate parallelism.
-        return 3;
-    }
-
-    // Keep ONNX Runtime default selection for other signatures.
-    0
 }
 
 fn infer_model_family(
@@ -173,6 +168,20 @@ fn infer_model_family(
         return ModelFamily::ClipLike;
     }
     ModelFamily::Other
+}
+
+fn puma_target_concurrency() -> usize {
+    std::env::var("GTE_PUMA_CONCURRENCY")
+        .ok()
+        .and_then(|raw| raw.parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(16)
+}
+
+fn host_parallelism() -> usize {
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1)
 }
 
 fn resolve_model_path(dir: &Path) -> Result<PathBuf> {
@@ -276,6 +285,38 @@ fn read_max_length(dir: &Path) -> usize {
         }
     }
     512
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{infer_model_family, tune_num_threads, ModelFamily};
+
+    #[test]
+    fn infer_model_family_recognizes_known_signatures() {
+        assert_eq!(
+            infer_model_family(true, true, "last_hidden_state"),
+            ModelFamily::E5Like
+        );
+        assert_eq!(
+            infer_model_family(true, false, "last_hidden_state"),
+            ModelFamily::SiglipLike
+        );
+        assert_eq!(
+            infer_model_family(false, false, "text_embeds"),
+            ModelFamily::ClipLike
+        );
+        assert_eq!(infer_model_family(true, false, "pooler_output"), ModelFamily::Other);
+    }
+
+    #[test]
+    fn tune_num_threads_respects_requested_value() {
+        assert_eq!(tune_num_threads(7, true, true, "last_hidden_state"), 7);
+    }
+
+    #[test]
+    fn tune_num_threads_returns_ort_default_for_other_family() {
+        assert_eq!(tune_num_threads(0, true, false, "pooler_output"), 0);
+    }
 }
 
 fn output_basename(name: &str) -> &str {

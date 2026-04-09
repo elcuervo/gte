@@ -37,7 +37,7 @@ pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Res
 
 fn preferred_execution_providers() -> Vec<ExecutionProviderDispatch> {
     let order = std::env::var("GTE_EXECUTION_PROVIDERS")
-        .unwrap_or_else(|_| "xnnpack,coreml".to_string())
+        .unwrap_or_else(|_| "xnnpack".to_string())
         .to_ascii_lowercase();
 
     let mut providers = Vec::new();
