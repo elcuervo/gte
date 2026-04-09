@@ -13,5 +13,8 @@ bench/__pycache__/
 # Downloaded models
 models/
 
+# Bundler config
+.bundle/
+
 # Local editor/agent state
 .claude/

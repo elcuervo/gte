@@ -19,7 +19,9 @@ jobs:
         uses: cachix/install-nix-action@v30
 
       - name: Install Ruby dependencies
-        run: nix develop -c bundle install --jobs 4 --retry 3 --without bench
+        run: |
+          nix develop -c bundle config set --local without bench
+          nix develop -c bundle install --jobs 4 --retry 3
 
       - name: Clippy
         run: nix develop -c cargo clippy --manifest-path ext/gte/Cargo.toml --no-default-features -- -D warnings
