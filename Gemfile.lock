@@ -6,14 +6,10 @@ PATH
 GEM
   remote: https://rubygems.org/
   specs:
-    benchmark-ips (2.14.0)
     benchmark-malloc (0.2.0)
     benchmark-perf (0.6.0)
     benchmark-trend (0.4.0)
     diff-lcs (1.6.2)
-    fastembed (1.1.0)
-      onnxruntime (~> 0.9)
-      tokenizers (~> 0.5)
     ffi (1.17.4)
     ffi (1.17.4-arm64-darwin)
     json (2.19.3)
@@ -55,14 +51,14 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  benchmark-ips
-  fastembed
   gte!
+  onnxruntime
   rake
   rake-compiler
   rb_sys
   rspec
   rspec-benchmark
+  tokenizers
 
 BUNDLED WITH
    2.7.2

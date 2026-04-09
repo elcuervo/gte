@@ -16,14 +16,12 @@
             rustc
             rustfmt
             cargo
+            cargo-nextest
             git
+            jq
+            hyperfine
             onnxruntime
             pkg-config
-            (python3.withPackages (ps: with ps; [
-              numpy
-              onnxruntime
-              tokenizers
-            ]))
           ];
 
           shellHook = ''

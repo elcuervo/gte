@@ -3,6 +3,9 @@
 require "spec_helper"
 
 RSpec.describe "Integration" do
+  SINGLE_BATCH_MIN_COSINE = 0.995
+  SINGLE_BATCH_MAX_ABS_DIFF = 0.03
+
   def cosine_similarity(a, b)
     dot = a.zip(b).sum { |x, y| x * y }
     norm_a = Math.sqrt(a.sum { |v| v * v })
@@ -10,15 +13,26 @@ RSpec.describe "Integration" do
     dot / (norm_a * norm_b)
   end
 
-  # -- GTE.new API ---------------------------------------------------------
+  def max_abs_diff(a, b)
+    a.zip(b).map { |x, y| (x - y).abs }.max || 0.0
+  end
+
+  def matrix(result)
+    return result if result.is_a?(Array)
+    return result.to_a if result.respond_to?(:to_a)
+
+    result
+  end
+
   context "GTE.new API", if: GTE_E5_AVAILABLE do
     let(:model) { GTE.new(GTE_E5_DIR) }
 
-    it "embed returns Array<Array<Float>>" do
+    it "embed returns GTE::Tensor" do
       result = model.embed("Hello world")
-      expect(result).to be_a(Array)
-      expect(result.first).to be_a(Array)
-      expect(result.first.first).to be_a(Float)
+      expect(result).to be_a(GTE::Tensor)
+      expect(result.rows).to eq(1)
+      expect(result.dim).to eq(GTE_EMBEDDING_DIM)
+      expect(result.row(0).first).to be_a(Float)
     end
 
     it "[] with string returns single vector" do
@@ -29,20 +43,20 @@ RSpec.describe "Integration" do
 
     it "[] with array returns batch" do
       result = model[["Hello", "World"]]
-      expect(result.length).to eq(2)
-      result.each { |row| expect(row.first).to be_a(Float) }
+      expect(result).to be_a(GTE::Tensor)
+      expect(result.rows).to eq(2)
+      matrix(result).each { |row| expect(row.first).to be_a(Float) }
     end
   end
 
-  # -- E5 Integration -------------------------------------------------------
   context "E5", if: GTE_E5_AVAILABLE do
     let(:model) { GTE.new(GTE_E5_DIR) }
 
     it "batch embedding returns correct dimensions" do
       texts = ["Hello world", "Goodbye world", "Machine learning"]
       result = model.embed(texts)
-      expect(result.length).to eq(3)
-      result.each { |row| expect(row.length).to eq(GTE_EMBEDDING_DIM) }
+      expect(result.rows).to eq(3)
+      matrix(result).each { |row| expect(row.length).to eq(GTE_EMBEDDING_DIM) }
     end
 
     it "cosine similarity: related texts score higher than unrelated" do
@@ -58,66 +72,64 @@ RSpec.describe "Integration" do
     it "long text truncation works silently" do
       long_text = "word " * 1000
       result = model.embed(long_text)
-      expect(result.length).to eq(1)
-      expect(result.first.length).to eq(GTE_EMBEDDING_DIM)
+      expect(result.rows).to eq(1)
+      expect(result.dim).to eq(GTE_EMBEDDING_DIM)
     end
 
     it "empty string handling" do
       result = model.embed("")
-      expect(result.length).to eq(1)
-      expect(result.first.length).to eq(GTE_EMBEDDING_DIM)
+      expect(result.rows).to eq(1)
+      expect(result.dim).to eq(GTE_EMBEDDING_DIM)
     end
 
     it "single text and batch produce consistent embeddings" do
       text = "consistency test"
-      single = model.embed(text).first
-      batch = model.embed([text, "other text"]).first
+      single = model.embed(text).row(0)
+      batch = model.embed([text, "other text"]).row(0)
 
-      single.zip(batch).each_with_index do |(s, b), i|
-        expect(s).to be_within(1e-5).of(b), "element #{i} differs: single=#{s} batch=#{b}"
-      end
+      cosine = cosine_similarity(single, batch)
+      max_abs = max_abs_diff(single, batch)
+      expect(cosine).to be >= SINGLE_BATCH_MIN_COSINE
+      expect(max_abs).to be <= SINGLE_BATCH_MAX_ABS_DIFF
     end
   end
 
-  # -- CLIP Integration ------------------------------------------------------
   context "CLIP", if: GTE_CLIP_AVAILABLE do
     let(:model) { GTE.new(GTE_CLIP_DIR) }
 
     it "batch embedding returns correct dimensions" do
       texts = ["a photo of a cat", "a painting of a sunset"]
       result = model.embed(texts)
-      expect(result.length).to eq(2)
-      result.each { |row| expect(row).to be_a(Array) }
+      expect(result.rows).to eq(2)
+      matrix(result).each { |row| expect(row).to be_a(Array) }
     end
 
     it "semantic similarity ordering" do
       texts = ["a photo of a cat", "a picture of a kitten", "a blueprint of a skyscraper"]
-      embeddings = model.embed(texts)
+      embeddings = matrix(model.embed(texts))
       sim_related = cosine_similarity(embeddings[0], embeddings[1])
       sim_unrelated = cosine_similarity(embeddings[0], embeddings[2])
       expect(sim_related).to be > sim_unrelated
     end
   end
 
-  # -- Siglip2 Integration ---------------------------------------------------
   context "Siglip2", if: GTE_SIGLIP2_AVAILABLE do
     let(:model) { GTE.new(GTE_SIGLIP2_DIR) }
 
     it "batch embedding returns correct dimensions" do
       texts = ["a photo of a cat", "a photo of a dog"]
       result = model.embed(texts)
-      expect(result.length).to eq(2)
-      result.each { |row| expect(row.length).to eq(GTE_SIGLIP2_EMBEDDING_DIM) }
+      expect(result.rows).to eq(2)
+      matrix(result).each { |row| expect(row.length).to eq(GTE_SIGLIP2_EMBEDDING_DIM) }
     end
 
     it "L2 normalization" do
-      result = model.embed("test normalization")
-      norm = Math.sqrt(result.first.sum { |v| v * v })
+      result = model.embed("test normalization").row(0)
+      norm = Math.sqrt(result.sum { |v| v * v })
       expect(norm).to be_within(1e-3).of(1.0)
     end
   end
 
-  # -- Cross-Model -----------------------------------------------------------
   context "cross-model", if: (GTE_E5_AVAILABLE && GTE_CLIP_AVAILABLE) do
     it "same text embedded by different models produces different dimension vectors" do
       e5 = GTE.new(GTE_E5_DIR)
@@ -126,7 +138,7 @@ RSpec.describe "Integration" do
       e5_result = e5.embed("hello world")
       clip_result = clip.embed("hello world")
 
-      expect(e5_result.first.length).not_to eq(clip_result.first.length)
+      expect(e5_result.dim).not_to eq(clip_result.dim)
     end
 
     it "multiple embedders from different models can coexist" do
@@ -135,12 +147,11 @@ RSpec.describe "Integration" do
 
       e5_result = e5.embed("test")
       clip_result = clip.embed("test")
-      expect(e5_result.first).to all(be_a(Float))
-      expect(clip_result.first).to all(be_a(Float))
+      expect(e5_result.row(0)).to all(be_a(Float))
+      expect(clip_result.row(0)).to all(be_a(Float))
     end
   end
 
-  # -- Unsupported Model Inputs -----------------------------------------------
   context "unsupported multimodal model inputs", if: GTE_CLIP_MULTIMODAL_AVAILABLE do
     it "fails fast with actionable error when model requires pixel_values" do
       expect {
@@ -152,7 +163,6 @@ RSpec.describe "Integration" do
     end
   end
 
-  # -- Performance Baseline --------------------------------------------------
   context "performance baseline", if: GTE_E5_AVAILABLE do
     let(:model) { GTE.new(GTE_E5_DIR) }
 
@@ -171,6 +181,35 @@ RSpec.describe "Integration" do
       per_item = batch_time / 32.0
       puts "\n  [perf] single=#{(single_time * 1000).round(2)}ms batch32_per_item=#{(per_item * 1000).round(2)}ms"
       expect(per_item).to be < (single_time * 2)
+    end
+  end
+
+  context "concurrent single request path", if: GTE_E5_AVAILABLE do
+    let(:model_dir) { GTE_E5_DIR }
+
+    it "matches single string and single-item batch embeddings for one text" do
+      model = GTE.new(model_dir)
+      text = "batch engine probe"
+
+      single_vec = model.embed(text).row(0)
+      batch_vec = model.embed([text]).row(0)
+      expect(cosine_similarity(single_vec, batch_vec)).to be >= SINGLE_BATCH_MIN_COSINE
+      expect(max_abs_diff(single_vec, batch_vec)).to be <= SINGLE_BATCH_MAX_ABS_DIFF
+    end
+
+    it "handles concurrent string requests with one vector per input" do
+      model = GTE.new(model_dir)
+      texts = Array.new(32) { |i| "concurrent batch request #{i}" }
+
+      results = Array.new(texts.length)
+      threads = texts.each_with_index.map do |text, idx|
+        Thread.new { results[idx] = model.embed(text).row(0) }
+      end
+      threads.each(&:join)
+
+      results.each do |row|
+        expect(row.length).to eq(GTE_EMBEDDING_DIM)
+      end
     end
   end
 

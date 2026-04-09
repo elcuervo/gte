@@ -26,3 +26,12 @@ ort-sys = "=2.0.0-rc.9"
 tokenizers = "0.21.0"
 ndarray = "0.16.0"
 half = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "hot_path"
+harness = false

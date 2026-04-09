@@ -1,2 +1,14 @@
-# ONNX model fixtures (user-provided, not committed)
+# Build artifacts
+lib/gte/*.bundle
+ext/gte/target/
+
+# Local model fixtures and temporary assets
 ext/gte/tests/fixtures/
+tmp/
+
+# Benchmark artifacts
+bench/results/
+bench/__pycache__/
+
+# Local editor/agent state
+.claude/
