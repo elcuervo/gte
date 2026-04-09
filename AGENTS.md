@@ -26,19 +26,22 @@ This repository is a Ruby gem with a Rust extension for text embeddings.
 
 ## Benchmark
 
-- Minimal benchmark entrypoint: `ruby bench/pure_ruby_compare.rb`.
-- It compares GTE against a pure Ruby ONNX Runtime/tokenizers path.
+- Comparison benchmark: `ruby bench/pure_ruby_compare.rb`.
+- Puma-like benchmark: `ruby bench/puma_compare.rb`.
+- Run ledger and regression checks: `ruby bench/runs_ledger.rb`.
+- Primary goal metric: response-time p95 (median of 3 runs) at concurrency `16`.
 - Environment variables:
   - `GTE_MODEL_DIR`
   - `GTE_CLIP_DIR`
   - `GTE_SIGLIP2_DIR`
+  - Optional Puma tuning target: `GTE_PUMA_CONCURRENCY` (default `16`).
 
 ## Working Rules
 
 - Prefer small, explicit changes in the Rust inference path.
 - Keep tokenization and session behavior aligned with the pure Ruby runtime in `bench/pure_ruby_runtime.rb`.
 - Preserve L2 normalization behavior at the Ruby-facing API layer.
-- Benchmark any inference-path change with `bench/pure_ruby_compare.rb`.
+- Benchmark any inference-path change with `bench/puma_compare.rb` and record results in `RUNS.md`.
 
 ## Useful Commands
 
@@ -47,3 +50,5 @@ This repository is a Ruby gem with a Rust extension for text embeddings.
 - `cargo test --manifest-path ext/gte/Cargo.toml --no-default-features`
 - `bundle exec rspec`
 - `bundle exec ruby bench/pure_ruby_compare.rb`
+- `bundle exec ruby bench/puma_compare.rb`
+- `bundle exec ruby bench/runs_ledger.rb append --latest`

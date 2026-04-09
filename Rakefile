@@ -32,6 +32,15 @@ namespace :bench do
     )
   end
 
+  desc "Sweep execution-provider and thread settings for Puma-like benchmark"
+  task :matrix_sweep do
+    run_in_nix(
+      "bundle", "exec", "ruby", "bench/puma_matrix_sweep.rb",
+      "--iterations", "80",
+      "--runs", "3"
+    )
+  end
+
   desc "Run Puma benchmark, append RUNS.md entry, and enforce goal/regression checks"
   task :record_run do
     run_in_nix(

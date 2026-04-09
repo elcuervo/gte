@@ -1,95 +1,34 @@
-name: Build Native Gems
-permissions: write-all
+name: Tests
 
 on:
-  workflow_dispatch:
+  pull_request:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
-  build:
-    name: Build
+  test:
     runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: x86_64-linux
-            target: x86_64-unknown-linux-gnu
-          - platform: arm64-darwin
-            target: aarch64-apple-darwin
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: oxidize-rb/actions/setup-ruby-and-rust@v1.4.4
-        with:
-          ruby-version: "3.4"
-          bundler-cache: false
-          cargo-cache: true
-          cargo-vendor: true
+      - name: Install Nix
+        uses: cachix/install-nix-action@v30
 
-      - uses: oxidize-rb/actions/cross-gem@v1
-        id: cross-gem
-        with:
-          platform: ${{ matrix.platform }}
-          ruby-versions: "3.4"
+      - name: Install Ruby dependencies
+        run: nix develop -c bundle install --jobs 4 --retry 3
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: bundle-artifact-${{ matrix.platform }}
-          path: ${{ steps.cross-gem.outputs.gem-path }}
+      - name: Compile extension
+        run: nix develop -c bundle exec rake compile
 
-  source:
-    name: Build source gem
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      - name: Run Rust tests
+        run: nix develop -c cargo test --manifest-path ext/gte/Cargo.toml --no-default-features
 
-      - uses: oxidize-rb/actions/setup-ruby-and-rust@v1.4.4
-        with:
-          ruby-version: "3.4"
-          bundler-cache: false
-          cargo-cache: true
-          cargo-vendor: true
+      - name: Run Ruby tests
+        run: nix develop -c bundle exec rspec
 
-      - name: Build gem
-        run: |
-          gem build gte.gemspec
-          mkdir -p pkg/
-          mv *.gem pkg/
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: bundle-artifact-source
-          path: pkg/
-
-  verify:
-    name: Verify native gem
-    needs: build
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            platform: x86_64-linux
-          - os: macos-latest
-            platform: arm64-darwin
-
-    steps:
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.4"
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: bundle-artifact-${{ matrix.platform }}
-          path: pkg/
-
-      - name: Install and verify native gem
-        run: |
-          gem install pkg/*.gem
-          ruby -e "require 'gte'; puts GTE::VERSION; puts 'Native gem loaded OK'"
+      - name: Verify RUNS ledger contains current VERSION
+        run: nix develop -c bundle exec ruby bench/runs_ledger.rb verify-current-version
