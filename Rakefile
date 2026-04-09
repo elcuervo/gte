@@ -2,9 +2,12 @@
 
 require 'bundler/gem_tasks'
 require 'rake/extensiontask'
-require 'rspec/core/rake_task'
-
-RSpec::Core::RakeTask.new(:spec)
+begin
+  require 'rspec/core/rake_task'
+  RSpec::Core::RakeTask.new(:spec)
+rescue LoadError
+  # rspec not available in cross-compile environment
+end
 
 spec = Gem::Specification.load('gte.gemspec')
 

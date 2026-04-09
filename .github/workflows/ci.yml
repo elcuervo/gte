@@ -62,6 +62,9 @@ jobs:
           cargo-cache: true
           cargo-vendor: true
 
+      - name: Configure bundler
+        run: bundle config set --local without bench
+
       - uses: oxidize-rb/actions/cross-gem@v1
         id: cross-gem
         with:
