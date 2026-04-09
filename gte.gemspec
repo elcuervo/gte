@@ -4,7 +4,7 @@ Gem::Specification.new do |spec|
   spec.name          = "gte"
   spec.version       = File.read(File.expand_path("VERSION", __dir__)).strip
   spec.license       = "MIT"
-  spec.summary       = "Fast text embeddings via Rust + ONNX Runtime"
+  spec.summary       = "General Text Embeddings"
   spec.authors       = ["elcuervo"]
   spec.email         = ["elcuervo@elcuervo.net"]
   spec.homepage      = "https://github.com/elcuervo/gte"
