@@ -1,7 +1,12 @@
-.PHONY: setup compile test lint bench bench-record clean ci
+.PHONY: setup compile test lint bench bench-record clean ci models
 
 # All commands run inside nix develop
 NIX := nix develop -c
+
+# Model directories for benchmarks
+export GTE_MODEL_DIR  := $(CURDIR)/models/e5
+export GTE_CLIP_DIR   := $(CURDIR)/models/clip
+export GTE_SIGLIP2_DIR := $(CURDIR)/models/siglip2
 
 setup:
 	$(NIX) bundle install --jobs 4 --retry 3
@@ -17,7 +22,10 @@ lint:
 	$(NIX) cargo clippy --manifest-path ext/gte/Cargo.toml --no-default-features -- -D warnings
 	$(NIX) bundle exec rubocop
 
-bench: compile
+models:
+	@script/download-models
+
+bench: compile models
 	$(NIX) bundle exec ruby bench/puma_compare.rb
 
 bench-record: compile

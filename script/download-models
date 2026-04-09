@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MODELS_DIR="$(cd "$(dirname "$0")/.." && pwd)/models"
+HF="https://huggingface.co"
+
+download() {
+  local repo="$1" remote="$2" local="$3"
+  local url="${HF}/${repo}/resolve/main/${remote}"
+  local dest="${MODELS_DIR}/${local}"
+  mkdir -p "$(dirname "$dest")"
+  echo "  ↓ ${local}"
+  curl -fSL --progress-bar -o "$dest" "$url"
+}
+
+# --- e5 ---
+if [ -f "$MODELS_DIR/e5/onnx/model.onnx" ]; then
+  echo "✓ e5 already downloaded"
+else
+  echo "Downloading e5 (multilingual-e5-small)..."
+  repo="Xenova/multilingual-e5-small"
+  download "$repo" "onnx/model_int8.onnx"          "e5/onnx/model.onnx"
+  download "$repo" "tokenizer.json"                 "e5/tokenizer.json"
+  download "$repo" "tokenizer_config.json"          "e5/tokenizer_config.json"
+  download "$repo" "config.json"                    "e5/config.json"
+  download "$repo" "sentencepiece.bpe.model"        "e5/sentencepiece.bpe.model"
+  download "$repo" "special_tokens_map.json"        "e5/special_tokens_map.json"
+fi
+
+# --- clip ---
+if [ -f "$MODELS_DIR/clip/onnx/text_model.onnx" ]; then
+  echo "✓ clip already downloaded"
+else
+  echo "Downloading clip (clip-vit-base-patch32)..."
+  repo="Xenova/clip-vit-base-patch32"
+  download "$repo" "onnx/text_model_int8.onnx"     "clip/onnx/text_model.onnx"
+  download "$repo" "tokenizer.json"                 "clip/tokenizer.json"
+  download "$repo" "tokenizer_config.json"          "clip/tokenizer_config.json"
+  download "$repo" "config.json"                    "clip/config.json"
+  download "$repo" "vocab.json"                     "clip/vocab.json"
+  download "$repo" "merges.txt"                     "clip/merges.txt"
+  download "$repo" "special_tokens_map.json"        "clip/special_tokens_map.json"
+fi
+
+# --- siglip2 ---
+if [ -f "$MODELS_DIR/siglip2/onnx/text_model.onnx" ]; then
+  echo "✓ siglip2 already downloaded"
+else
+  echo "Downloading siglip2 (siglip2-base-patch16-224)..."
+  repo="onnx-community/siglip2-base-patch16-224-ONNX"
+  download "$repo" "onnx/text_model_quantized.onnx" "siglip2/onnx/text_model.onnx"
+  download "$repo" "tokenizer.json"                 "siglip2/tokenizer.json"
+  download "$repo" "tokenizer_config.json"          "siglip2/tokenizer_config.json"
+  download "$repo" "config.json"                    "siglip2/config.json"
+  download "$repo" "tokenizer.model"                "siglip2/tokenizer.model"
+  download "$repo" "special_tokens_map.json"        "siglip2/special_tokens_map.json"
+fi
+
+echo "All models ready."
