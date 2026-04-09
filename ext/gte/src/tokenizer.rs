@@ -24,14 +24,18 @@ impl Tokenizer {
         let mut tokenizer = tokenizers::Tokenizer::from_file(tokenizer_path)
             .map_err(|e| GteError::Tokenizer(e.to_string()))?;
 
-        let mut truncation = TruncationParams::default();
-        truncation.max_length = max_length;
+        let truncation = TruncationParams {
+            max_length,
+            ..Default::default()
+        };
         tokenizer
             .with_truncation(Some(truncation))
             .map_err(|e| GteError::Tokenizer(e.to_string()))?;
 
-        let mut padding = PaddingParams::default();
-        padding.strategy = PaddingStrategy::BatchLongest;
+        let padding = PaddingParams {
+            strategy: PaddingStrategy::BatchLongest,
+            ..Default::default()
+        };
         tokenizer.with_padding(Some(padding));
 
         Ok(Self {

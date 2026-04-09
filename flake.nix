@@ -16,6 +16,7 @@
             rustc
             rustfmt
             cargo
+            clippy
             cargo-nextest
             git
             jq
