@@ -21,6 +21,12 @@ jobs:
       - name: Install Ruby dependencies
         run: nix develop -c bundle install --jobs 4 --retry 3
 
+      - name: Clippy
+        run: nix develop -c cargo clippy --manifest-path ext/gte/Cargo.toml --no-default-features -- -D warnings
+
+      - name: Rubocop
+        run: nix develop -c bundle exec rubocop
+
       - name: Compile extension
         run: nix develop -c bundle exec rake compile
 

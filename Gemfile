@@ -11,3 +11,4 @@ gem "rspec"
 gem "rspec-benchmark"
 gem "onnxruntime"
 gem "tokenizers"
+gem "rubocop", require: false

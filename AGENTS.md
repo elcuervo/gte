@@ -46,9 +46,14 @@ This repository is a Ruby gem with a Rust extension for text embeddings.
 ## Useful Commands
 
 - Always run build, test, and benchmark commands inside `nix develop`.
-- `bundle exec rake compile`
-- `cargo test --manifest-path ext/gte/Cargo.toml --no-default-features`
-- `bundle exec rspec`
+- A `Makefile` groups common dev tasks; prefer `make <target>` over raw commands.
+- `make setup` — install Ruby dependencies
+- `make compile` — compile the Rust extension
+- `make test` — run Rust and Ruby tests
+- `make lint` — run clippy + rubocop (catches dead code, unused imports, style issues)
+- `make bench` — run Puma-like benchmark
+- `make bench-record` — record benchmark results
+- `make ci` — full lint + test pipeline
+- `make clean` — remove build artifacts
 - `bundle exec ruby bench/pure_ruby_compare.rb`
-- `bundle exec ruby bench/puma_compare.rb`
 - `bundle exec ruby bench/runs_ledger.rb append --latest`
