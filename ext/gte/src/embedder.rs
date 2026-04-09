@@ -19,7 +19,6 @@ pub struct Embedder {
     tokenizer: Tokenizer,
     session: Session,
     config: ModelConfig,
-    family: ModelFamily,
 }
 
 impl Embedder {
@@ -34,7 +33,6 @@ impl Embedder {
             tokenizer,
             session,
             config,
-            family: ModelFamily::Other,
         })
     }
 
@@ -71,11 +69,6 @@ impl Embedder {
         let with_attention_mask = session.inputs.iter().any(|i| i.name == "attention_mask");
         let output_tensor = select_output_tensor(&session)?;
         let output_base = output_basename(output_tensor.as_str()).to_string();
-        let family = infer_model_family(
-            with_attention_mask,
-            with_type_ids,
-            output_base.as_str(),
-        );
         let mode = infer_extraction_mode(&session, output_tensor.as_str())?;
         if matches!(mode, ExtractorMode::MeanPool) && !with_attention_mask {
             return Err(GteError::Inference(
@@ -112,7 +105,6 @@ impl Embedder {
             tokenizer,
             session,
             config,
-            family,
         })
     }
 
@@ -129,9 +121,6 @@ impl Embedder {
         run_session(&self.session, tokenized, &self.config)
     }
 
-    pub fn model_family(&self) -> ModelFamily {
-        self.family
-    }
 }
 
 fn tune_num_threads(
