@@ -5,3 +5,59 @@ AllCops:
     - '.bundle/**/*'
     - 'tmp/**/*'
     - 'pkg/**/*'
+
+Gemspec/DevelopmentDependencies:
+  Enabled: false
+
+Gemspec/RequiredRubyVersion:
+  Enabled: false
+
+Metrics/AbcSize:
+  Exclude:
+    - 'bench/**/*'
+
+Metrics/BlockLength:
+  Exclude:
+    - 'Rakefile'
+    - 'bench/**/*'
+    - 'spec/**/*'
+
+Metrics/ClassLength:
+  Exclude:
+    - 'bench/**/*'
+
+Metrics/CyclomaticComplexity:
+  Exclude:
+    - 'bench/**/*'
+
+Metrics/MethodLength:
+  Exclude:
+    - 'bench/**/*'
+
+Metrics/PerceivedComplexity:
+  Exclude:
+    - 'bench/**/*'
+
+Layout/LineLength:
+  Max: 120
+  Exclude:
+    - 'bench/**/*'
+
+Naming/MethodParameterName:
+  AllowedNames:
+    - a
+    - b
+  Exclude:
+    - 'bench/**/*'
+
+Style/Documentation:
+  Enabled: false
+
+Style/FormatStringToken:
+  Exclude:
+    - 'bench/**/*'
+
+Lint/ConstantDefinitionInBlock:
+  Exclude:
+    - 'bench/**/*'
+    - 'spec/**/*'

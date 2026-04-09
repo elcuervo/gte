@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-require "gte/gte"
+require 'gte/gte'
 
 module GTE
-  VERSION = File.read(File.expand_path("../VERSION", __dir__)).strip
+  VERSION = File.read(File.expand_path('../VERSION', __dir__)).strip
 
   class Model
     def initialize(dir, num_threads: 0, optimization_level: 3)

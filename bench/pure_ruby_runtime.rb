@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require "json"
-require "onnxruntime"
-require "tokenizers"
+require 'json'
+require 'onnxruntime'
+require 'tokenizers'
 
 module PureRubyTextEmbedding
   class Error < StandardError; end
@@ -10,10 +10,10 @@ module PureRubyTextEmbedding
 
   class TextEncoder
     MODEL_CANDIDATES = [
-      "onnx/text_model.onnx",
-      "text_model.onnx",
-      "onnx/model.onnx",
-      "model.onnx"
+      'onnx/text_model.onnx',
+      'text_model.onnx',
+      'onnx/model.onnx',
+      'model.onnx'
     ].freeze
 
     OUTPUT_PREFERENCES = %w[
@@ -30,7 +30,7 @@ module PureRubyTextEmbedding
       @model_dir = File.expand_path(model_dir)
       raise MissingModelDirectory, "model directory not found: #{@model_dir}" unless Dir.exist?(@model_dir)
 
-      @tokenizer_path = File.join(@model_dir, "tokenizer.json")
+      @tokenizer_path = File.join(@model_dir, 'tokenizer.json')
       raise Error, "tokenizer.json not found in #{@model_dir}" unless File.exist?(@tokenizer_path)
 
       @model_path = resolve_model_path!
@@ -40,8 +40,8 @@ module PureRubyTextEmbedding
 
       @output_name = select_output_name!
       @output_rank = output_rank!(@output_name)
-      if @output_rank == 3 && !@input_names.include?("attention_mask")
-        raise Error, "mean pooling requires attention_mask input"
+      if @output_rank == 3 && !@input_names.include?('attention_mask')
+        raise Error, 'mean pooling requires attention_mask input'
       end
 
       @max_length = read_max_length
@@ -59,13 +59,13 @@ module PureRubyTextEmbedding
       output = @model.predict(feeds, output_names: [@output_name]).fetch(@output_name)
 
       vectors = case @output_rank
-      when 2
-        output
-      when 3
-        mean_pool(output, feeds.fetch(:attention_mask))
-      else
-        raise Error, "unsupported output rank #{@output_rank}"
-      end
+                when 2
+                  output
+                when 3
+                  mean_pool(output, feeds.fetch(:attention_mask))
+                else
+                  raise Error, "unsupported output rank #{@output_rank}"
+                end
 
       normalize_l2(vectors)
     end
@@ -86,17 +86,17 @@ module PureRubyTextEmbedding
       return if unsupported.empty?
 
       message = "unsupported model inputs for text embedding API: #{unsupported.join(', ')}"
-      if unsupported.include?("pixel_values")
-        message += ". This looks like a multimodal graph. Provide a text-only export (for example onnx/text_model.onnx)."
-      else
-        message += ". Supported inputs are: input_ids, attention_mask, token_type_ids."
-      end
+      message += if unsupported.include?('pixel_values')
+                   '. This looks like a multimodal graph. Provide a text-only export (for example onnx/text_model.onnx).'
+                 else
+                   '. Supported inputs are: input_ids, attention_mask, token_type_ids.'
+                 end
       raise Error, message
     end
 
     def select_output_name!
       output_names = @model.outputs.map { |output| output.fetch(:name) }
-      raise Error, "model has no outputs" if output_names.empty?
+      raise Error, 'model has no outputs' if output_names.empty?
 
       OUTPUT_PREFERENCES.each do |preferred|
         output_names.each do |name|
@@ -116,17 +116,17 @@ module PureRubyTextEmbedding
     end
 
     def read_max_length
-      config_path = File.join(@model_dir, "tokenizer_config.json")
+      config_path = File.join(@model_dir, 'tokenizer_config.json')
       return DEFAULT_MAX_LENGTH unless File.exist?(config_path)
 
-      value = JSON.parse(File.read(config_path))["model_max_length"]
+      value = JSON.parse(File.read(config_path))['model_max_length']
       parsed = case value
-      when Integer then value
-      when Float then value.to_i
-      when String then Integer(value, exception: false)
-      end
+               when Integer then value
+               when Float then value.to_i
+               when String then Integer(value, exception: false)
+               end
 
-      return DEFAULT_MAX_LENGTH unless parsed && parsed.positive?
+      return DEFAULT_MAX_LENGTH unless parsed&.positive?
 
       [parsed, MAX_SUPPORTED_LENGTH].min
     rescue JSON::ParserError
@@ -138,11 +138,11 @@ module PureRubyTextEmbedding
       input_ids = encodings.map { |encoding| pad_to_max(encoding.ids, max_len) }
       feeds = { input_ids: input_ids }
 
-      if @input_names.include?("attention_mask")
+      if @input_names.include?('attention_mask')
         feeds[:attention_mask] = encodings.map { |encoding| pad_to_max(encoding.attention_mask, max_len) }
       end
 
-      if @input_names.include?("token_type_ids")
+      if @input_names.include?('token_type_ids')
         feeds[:token_type_ids] = encodings.map { |encoding| pad_to_max(encoding.type_ids, max_len) }
       end
 

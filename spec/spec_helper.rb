@@ -1,4 +1,4 @@
 # frozen_string_literal: true
 
-require "gte"
-require_relative "support/fixtures"
+require 'gte'
+require_relative 'support/fixtures'

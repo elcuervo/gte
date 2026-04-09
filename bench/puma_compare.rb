@@ -1,18 +1,17 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require "fileutils"
-require "json"
-require "optparse"
-require "pathname"
-require "thread"
-require "time"
+require 'fileutils'
+require 'json'
+require 'optparse'
+require 'pathname'
+require 'time'
 
-require "gte"
-require_relative "pure_ruby_runtime"
+require 'gte'
+require_relative 'pure_ruby_runtime'
 
-ROOT = File.expand_path("..", __dir__)
-DEFAULT_OUTPUT_DIR = File.expand_path("results", __dir__)
+ROOT = File.expand_path('..', __dir__)
+DEFAULT_OUTPUT_DIR = File.expand_path('results', __dir__)
 DEFAULT_ITERATIONS = 40
 DEFAULT_CONCURRENCY = 16
 DEFAULT_RUN_SAMPLES = 3
@@ -21,52 +20,52 @@ DEFAULT_MIN_COS = 0.99999
 DEFAULT_MIN_P95_RATIO = 2.0
 
 MODELS = {
-  "e5" => {
-    "label" => "E5 multilingual small",
-    "env_var" => "GTE_MODEL_DIR",
-    "probe_texts" => [
-      "query: benchmark validation probe",
-      "query: machine learning basics",
-      "passage: gradient descent updates model parameters"
+  'e5' => {
+    'label' => 'E5 multilingual small',
+    'env_var' => 'GTE_MODEL_DIR',
+    'probe_texts' => [
+      'query: benchmark validation probe',
+      'query: machine learning basics',
+      'passage: gradient descent updates model parameters'
     ],
-    "request_template" => "query: puma request %{idx} for e5"
+    'request_template' => 'query: puma request %{idx} for e5'
   },
-  "clip" => {
-    "label" => "CLIP ViT-B/32 text encoder",
-    "env_var" => "GTE_CLIP_DIR",
-    "probe_texts" => [
-      "a photo of a cat",
-      "a picture of a kitten",
-      "a blueprint of a skyscraper"
+  'clip' => {
+    'label' => 'CLIP ViT-B/32 text encoder',
+    'env_var' => 'GTE_CLIP_DIR',
+    'probe_texts' => [
+      'a photo of a cat',
+      'a picture of a kitten',
+      'a blueprint of a skyscraper'
     ],
-    "request_template" => "a text prompt %{idx} for clip"
+    'request_template' => 'a text prompt %{idx} for clip'
   },
-  "siglip2" => {
-    "label" => "Siglip2 base text encoder",
-    "env_var" => "GTE_SIGLIP2_DIR",
-    "probe_texts" => [
-      "a photo of a cat",
-      "a photo of a dog",
-      "a geometric abstract logo"
+  'siglip2' => {
+    'label' => 'Siglip2 base text encoder',
+    'env_var' => 'GTE_SIGLIP2_DIR',
+    'probe_texts' => [
+      'a photo of a cat',
+      'a photo of a dog',
+      'a geometric abstract logo'
     ],
-    "request_template" => "a text prompt %{idx} for siglip2"
+    'request_template' => 'a text prompt %{idx} for siglip2'
   }
 }.freeze
 
 def default_output_path
-  timestamp = Time.now.utc.strftime("%Y%m%dT%H%M%SZ")
+  timestamp = Time.now.utc.strftime('%Y%m%dT%H%M%SZ')
   File.join(DEFAULT_OUTPUT_DIR, "puma_compare_#{timestamp}.json")
 end
 
 def resolve_models
   MODELS.each_with_object({}) do |(key, cfg), out|
-    dir = ENV[cfg.fetch("env_var")]
+    dir = ENV.fetch(cfg.fetch('env_var'), nil)
     next if dir.nil? || dir.empty?
 
     expanded = File.expand_path(dir, ROOT)
     next unless Dir.exist?(expanded)
 
-    out[key] = cfg.merge("dir" => expanded)
+    out[key] = cfg.merge('dir' => expanded)
   end
 end
 
@@ -102,9 +101,9 @@ def compare_embeddings(actual, reference)
   end
 
   {
-    "max_abs" => max_abs,
-    "mean_abs" => (count.zero? ? 0.0 : mean_abs / count),
-    "min_cosine" => min_cosine
+    'max_abs' => max_abs,
+    'mean_abs' => (count.zero? ? 0.0 : mean_abs / count),
+    'min_cosine' => min_cosine
   }
 end
 
@@ -124,11 +123,11 @@ end
 def latency_summary(samples_ms)
   sorted = samples_ms.sort
   {
-    "median_ms" => sorted[sorted.length / 2],
-    "p95_ms" => percentile(sorted, 0.95),
-    "p99_ms" => percentile(sorted, 0.99),
-    "min_ms" => sorted.first,
-    "max_ms" => sorted.last
+    'median_ms' => sorted[sorted.length / 2],
+    'p95_ms' => percentile(sorted, 0.95),
+    'p99_ms' => percentile(sorted, 0.99),
+    'min_ms' => sorted.first,
+    'max_ms' => sorted.last
   }
 end
 
@@ -141,18 +140,18 @@ end
 
 def aggregate_samples(samples)
   {
-    "response_time" => {
-      "median_ms" => metric_median(samples, %w[response_time median_ms]),
-      "p95_ms" => metric_median(samples, %w[response_time p95_ms]),
-      "p99_ms" => metric_median(samples, %w[response_time p99_ms])
+    'response_time' => {
+      'median_ms' => metric_median(samples, %w[response_time median_ms]),
+      'p95_ms' => metric_median(samples, %w[response_time p95_ms]),
+      'p99_ms' => metric_median(samples, %w[response_time p99_ms])
     },
-    "service_time" => {
-      "median_ms" => metric_median(samples, %w[service_time median_ms]),
-      "p95_ms" => metric_median(samples, %w[service_time p95_ms]),
-      "p99_ms" => metric_median(samples, %w[service_time p99_ms])
+    'service_time' => {
+      'median_ms' => metric_median(samples, %w[service_time median_ms]),
+      'p95_ms' => metric_median(samples, %w[service_time p95_ms]),
+      'p99_ms' => metric_median(samples, %w[service_time p99_ms])
     },
-    "throughput_rps" => metric_median(samples, ["throughput_rps"]),
-    "requests" => metric_median(samples, ["requests"])
+    'throughput_rps' => metric_median(samples, ['throughput_rps']),
+    'requests' => metric_median(samples, ['requests'])
   }
 end
 
@@ -190,11 +189,11 @@ def benchmark_concurrent(callable, request_texts, concurrency)
   wall_ms = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_wall) * 1000.0
 
   {
-    "response_time" => latency_summary(response_latencies),
-    "service_time" => latency_summary(service_latencies),
-    "requests" => request_texts.length,
-    "wall_ms" => wall_ms,
-    "throughput_rps" => request_texts.length / (wall_ms / 1000.0)
+    'response_time' => latency_summary(response_latencies),
+    'service_time' => latency_summary(service_latencies),
+    'requests' => request_texts.length,
+    'wall_ms' => wall_ms,
+    'throughput_rps' => request_texts.length / (wall_ms / 1000.0)
   }
 end
 
@@ -217,13 +216,13 @@ def benchmark_pair_samples(gte_callable, pure_callable, requests, concurrency, r
   end
 
   {
-    "gte" => {
-      "samples" => gte_samples,
-      "aggregate" => aggregate_samples(gte_samples)
+    'gte' => {
+      'samples' => gte_samples,
+      'aggregate' => aggregate_samples(gte_samples)
     },
-    "pure_ruby" => {
-      "samples" => pure_samples,
-      "aggregate" => aggregate_samples(pure_samples)
+    'pure_ruby' => {
+      'samples' => pure_samples,
+      'aggregate' => aggregate_samples(pure_samples)
     }
   }
 end
@@ -242,46 +241,46 @@ options = {
 }
 
 OptionParser.new do |opts|
-  opts.on("--output PATH") { |value| options[:output] = File.expand_path(value, ROOT) }
-  opts.on("--iterations N", Integer) { |value| options[:iterations] = value }
-  opts.on("--concurrency N", Integer) { |value| options[:concurrency] = value }
-  opts.on("--runs N", Integer) { |value| options[:run_samples] = value }
-  opts.on("--max-abs FLOAT", Float) { |value| options[:max_abs] = value }
-  opts.on("--min-cos FLOAT", Float) { |value| options[:min_cos] = value }
-  opts.on("--min-p95-ratio FLOAT", Float) { |value| options[:min_p95_ratio] = value }
-  opts.on("--gte-threads N", Integer) { |value| options[:gte_threads] = value }
-  opts.on("--exec-providers LIST") { |value| options[:exec_providers] = value.strip }
-  opts.on("--enforce-goal") { options[:enforce_goal] = true }
+  opts.on('--output PATH') { |value| options[:output] = File.expand_path(value, ROOT) }
+  opts.on('--iterations N', Integer) { |value| options[:iterations] = value }
+  opts.on('--concurrency N', Integer) { |value| options[:concurrency] = value }
+  opts.on('--runs N', Integer) { |value| options[:run_samples] = value }
+  opts.on('--max-abs FLOAT', Float) { |value| options[:max_abs] = value }
+  opts.on('--min-cos FLOAT', Float) { |value| options[:min_cos] = value }
+  opts.on('--min-p95-ratio FLOAT', Float) { |value| options[:min_p95_ratio] = value }
+  opts.on('--gte-threads N', Integer) { |value| options[:gte_threads] = value }
+  opts.on('--exec-providers LIST') { |value| options[:exec_providers] = value.strip }
+  opts.on('--enforce-goal') { options[:enforce_goal] = true }
 end.parse!(ARGV)
 
 if options[:iterations] <= 0
-  warn("iterations must be > 0")
+  warn('iterations must be > 0')
   exit 1
 end
 
 if options[:concurrency] <= 0
-  warn("concurrency must be > 0")
+  warn('concurrency must be > 0')
   exit 1
 end
 
 if options[:run_samples] <= 0
-  warn("runs must be > 0")
+  warn('runs must be > 0')
   exit 1
 end
 
 if options[:gte_threads] && options[:gte_threads] <= 0
-  warn("gte-threads must be > 0")
+  warn('gte-threads must be > 0')
   exit 1
 end
 
 resolved = resolve_models
 if resolved.empty?
-  warn("no model directories configured via GTE_MODEL_DIR/GTE_CLIP_DIR/GTE_SIGLIP2_DIR")
+  warn('no model directories configured via GTE_MODEL_DIR/GTE_CLIP_DIR/GTE_SIGLIP2_DIR')
   exit 1
 end
 
-puts "Puma-like in-process concurrency benchmark (single-request path)"
-puts "=" * 72
+puts 'Puma-like in-process concurrency benchmark (single-request path)'
+puts '=' * 72
 puts "iterations/model: #{options[:iterations]}"
 puts "concurrency: #{options[:concurrency]}"
 puts "sample runs: #{options[:run_samples]} (median aggregation)"
@@ -290,40 +289,40 @@ puts "execution providers: #{options[:exec_providers] || ENV['GTE_EXECUTION_PROV
 puts "thresholds: max_abs<=#{options[:max_abs]} min_cos>=#{options[:min_cos]} response_p95_ratio>=#{options[:min_p95_ratio]}x"
 
 payload = {
-  "version" => 2,
-  "generated_at" => Time.now.utc.iso8601,
-  "ruby_version" => RUBY_VERSION,
-  "platform" => RUBY_PLATFORM,
-  "gem_version" => File.read(File.expand_path("../VERSION", __dir__)).strip,
-  "git_sha" => `git rev-parse --short HEAD`.strip,
-  "mode" => "puma_like_in_process",
-  "iterations" => options[:iterations],
-  "concurrency" => options[:concurrency],
-  "run_samples" => options[:run_samples],
-  "runtime_overrides" => {
-    "gte_threads" => options[:gte_threads],
-    "execution_providers" => options[:exec_providers]
+  'version' => 2,
+  'generated_at' => Time.now.utc.iso8601,
+  'ruby_version' => RUBY_VERSION,
+  'platform' => RUBY_PLATFORM,
+  'gem_version' => File.read(File.expand_path('../VERSION', __dir__)).strip,
+  'git_sha' => `git rev-parse --short HEAD`.strip,
+  'mode' => 'puma_like_in_process',
+  'iterations' => options[:iterations],
+  'concurrency' => options[:concurrency],
+  'run_samples' => options[:run_samples],
+  'runtime_overrides' => {
+    'gte_threads' => options[:gte_threads],
+    'execution_providers' => options[:exec_providers]
   },
-  "thresholds" => {
-    "max_abs" => options[:max_abs],
-    "min_cos" => options[:min_cos],
-    "min_p95_ratio" => options[:min_p95_ratio],
-    "goal_metric" => "response_time_p95",
-    "sample_aggregation" => "median"
+  'thresholds' => {
+    'max_abs' => options[:max_abs],
+    'min_cos' => options[:min_cos],
+    'min_p95_ratio' => options[:min_p95_ratio],
+    'goal_metric' => 'response_time_p95',
+    'sample_aggregation' => 'median'
   },
-  "models" => {}
+  'models' => {}
 }
 
 correctness_failures = []
 ratio_failures = []
 
-original_exec_providers = ENV["GTE_EXECUTION_PROVIDERS"]
-ENV["GTE_EXECUTION_PROVIDERS"] = options[:exec_providers] if options[:exec_providers]
+original_exec_providers = ENV.fetch('GTE_EXECUTION_PROVIDERS', nil)
+ENV['GTE_EXECUTION_PROVIDERS'] = options[:exec_providers] if options[:exec_providers]
 
 begin
   resolved.each do |key, cfg|
-    label = cfg.fetch("label")
-    model_dir = cfg.fetch("dir")
+    label = cfg.fetch('label')
+    model_dir = cfg.fetch('dir')
 
     puts "\n#{label} (#{key})"
     puts "  dir: #{Pathname.new(model_dir).relative_path_from(Pathname.new(ROOT))}"
@@ -331,30 +330,30 @@ begin
     gte_model = GTE.new(model_dir, num_threads: options[:gte_threads] || 0)
     pure_model = PureRubyTextEmbedding::TextEncoder.new(model_dir: model_dir)
 
-    probe_texts = cfg.fetch("probe_texts")
+    probe_texts = cfg.fetch('probe_texts')
     gte_embeddings = materialize_embeddings(gte_model.embed(probe_texts))
     pure_embeddings = pure_model.embed(probe_texts)
 
     correctness = compare_embeddings(pure_embeddings, gte_embeddings)
-    correctness["rows"] = probe_texts.length
-    correctness["dim"] = pure_embeddings.first&.length || 0
+    correctness['rows'] = probe_texts.length
+    correctness['dim'] = pure_embeddings.first&.length || 0
 
-    puts format("  correctness: max_abs=%<max>.9f mean_abs=%<mean>.9f min_cosine=%<cos>.9f",
-                max: correctness.fetch("max_abs"),
-                mean: correctness.fetch("mean_abs"),
-                cos: correctness.fetch("min_cosine"))
+    puts format('  correctness: max_abs=%<max>.9f mean_abs=%<mean>.9f min_cosine=%<cos>.9f',
+                max: correctness.fetch('max_abs'),
+                mean: correctness.fetch('mean_abs'),
+                cos: correctness.fetch('min_cosine'))
 
-    if correctness.fetch("max_abs") > options[:max_abs] || correctness.fetch("min_cosine") < options[:min_cos]
+    if correctness.fetch('max_abs') > options[:max_abs] || correctness.fetch('min_cosine') < options[:min_cos]
       correctness_failures << "#{key} failed correctness thresholds"
     end
 
-    warmup_text = format(cfg.fetch("request_template"), idx: "warmup")
+    warmup_text = format(cfg.fetch('request_template'), idx: 'warmup')
     (options[:concurrency] * 2).times do
       gte_model.embed(warmup_text)
       pure_model.embed(warmup_text)
     end
 
-    requests = generate_requests(cfg.fetch("request_template"), options[:iterations])
+    requests = generate_requests(cfg.fetch('request_template'), options[:iterations])
     pair_stats = benchmark_pair_samples(
       ->(text) { gte_model.embed(text) },
       ->(text) { pure_model.embed(text) },
@@ -362,25 +361,25 @@ begin
       options[:concurrency],
       options[:run_samples]
     )
-    gte_stats = pair_stats.fetch("gte")
-    pure_stats = pair_stats.fetch("pure_ruby")
+    gte_stats = pair_stats.fetch('gte')
+    pure_stats = pair_stats.fetch('pure_ruby')
 
-    gte_agg = gte_stats.fetch("aggregate")
-    pure_agg = pure_stats.fetch("aggregate")
+    gte_agg = gte_stats.fetch('aggregate')
+    pure_agg = pure_stats.fetch('aggregate')
 
-    ratio_response_p95 = pure_agg.fetch("response_time").fetch("p95_ms") / gte_agg.fetch("response_time").fetch("p95_ms")
-    ratio_response_median = pure_agg.fetch("response_time").fetch("median_ms") / gte_agg.fetch("response_time").fetch("median_ms")
-    ratio_service_p95 = pure_agg.fetch("service_time").fetch("p95_ms") / gte_agg.fetch("service_time").fetch("p95_ms")
+    ratio_response_p95 = pure_agg.fetch('response_time').fetch('p95_ms') / gte_agg.fetch('response_time').fetch('p95_ms')
+    ratio_response_median = pure_agg.fetch('response_time').fetch('median_ms') / gte_agg.fetch('response_time').fetch('median_ms')
+    ratio_service_p95 = pure_agg.fetch('service_time').fetch('p95_ms') / gte_agg.fetch('service_time').fetch('p95_ms')
 
-    puts format("  gte:  response_p95=%<rp95>.2fms service_p95=%<sp95>.2fms throughput=%<rps>.2frps",
-                rp95: gte_agg.fetch("response_time").fetch("p95_ms"),
-                sp95: gte_agg.fetch("service_time").fetch("p95_ms"),
-                rps: gte_agg.fetch("throughput_rps"))
-    puts format("  pure: response_p95=%<rp95>.2fms service_p95=%<sp95>.2fms throughput=%<rps>.2frps",
-                rp95: pure_agg.fetch("response_time").fetch("p95_ms"),
-                sp95: pure_agg.fetch("service_time").fetch("p95_ms"),
-                rps: pure_agg.fetch("throughput_rps"))
-    puts format("  ratios: response_median=%<rm>.2fx response_p95=%<rp95>.2fx service_p95=%<sp95>.2fx",
+    puts format('  gte:  response_p95=%<rp95>.2fms service_p95=%<sp95>.2fms throughput=%<rps>.2frps',
+                rp95: gte_agg.fetch('response_time').fetch('p95_ms'),
+                sp95: gte_agg.fetch('service_time').fetch('p95_ms'),
+                rps: gte_agg.fetch('throughput_rps'))
+    puts format('  pure: response_p95=%<rp95>.2fms service_p95=%<sp95>.2fms throughput=%<rps>.2frps',
+                rp95: pure_agg.fetch('response_time').fetch('p95_ms'),
+                sp95: pure_agg.fetch('service_time').fetch('p95_ms'),
+                rps: pure_agg.fetch('throughput_rps'))
+    puts format('  ratios: response_median=%<rm>.2fx response_p95=%<rp95>.2fx service_p95=%<sp95>.2fx',
                 rm: ratio_response_median,
                 rp95: ratio_response_p95,
                 sp95: ratio_service_p95)
@@ -389,44 +388,44 @@ begin
       ratio_failures << "#{key} response_p95 ratio #{ratio_response_p95.round(2)}x < #{options[:min_p95_ratio]}x"
     end
 
-    payload.fetch("models")[key] = {
-      "label" => label,
-      "dir" => Pathname.new(model_dir).relative_path_from(Pathname.new(ROOT)).to_s,
-      "correctness" => correctness,
-      "puma_like" => {
-        "gte" => gte_stats,
-        "pure_ruby" => pure_stats,
-        "ratio_pure_over_gte" => {
-          "response_median" => ratio_response_median,
-          "response_p95" => ratio_response_p95,
-          "service_p95" => ratio_service_p95
+    payload.fetch('models')[key] = {
+      'label' => label,
+      'dir' => Pathname.new(model_dir).relative_path_from(Pathname.new(ROOT)).to_s,
+      'correctness' => correctness,
+      'puma_like' => {
+        'gte' => gte_stats,
+        'pure_ruby' => pure_stats,
+        'ratio_pure_over_gte' => {
+          'response_median' => ratio_response_median,
+          'response_p95' => ratio_response_p95,
+          'service_p95' => ratio_service_p95
         }
       }
     }
   end
 ensure
-  ENV["GTE_EXECUTION_PROVIDERS"] = original_exec_providers
+  ENV['GTE_EXECUTION_PROVIDERS'] = original_exec_providers
 end
 
 FileUtils.mkdir_p(File.dirname(options[:output]))
-File.write(options[:output], JSON.pretty_generate(payload) + "\n")
+File.write(options[:output], "#{JSON.pretty_generate(payload)}\n")
 puts "\nWrote benchmark results: #{Pathname.new(options[:output]).relative_path_from(Pathname.new(ROOT))}"
 
 if correctness_failures.any?
-  warn "FAIL: correctness threshold failures"
+  warn 'FAIL: correctness threshold failures'
   correctness_failures.each { |f| warn "  - #{f}" }
   exit 1
 end
 
 if ratio_failures.any?
   if options[:enforce_goal]
-    warn "FAIL: response-time p95 speed target not met"
+    warn 'FAIL: response-time p95 speed target not met'
     ratio_failures.each { |f| warn "  - #{f}" }
     exit 1
   end
-  warn "WARN: response-time p95 speed target not met"
+  warn 'WARN: response-time p95 speed target not met'
   ratio_failures.each { |f| warn "  - #{f}" }
   exit 0
 end
 
-puts "PASS: correctness and response-time p95 speed targets satisfied"
+puts 'PASS: correctness and response-time p95 speed targets satisfied'

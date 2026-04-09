@@ -1,50 +1,48 @@
 # frozen_string_literal: true
 
-require "spec_helper"
+require 'spec_helper'
 
-RSpec.describe "GTE::Embedder" do
-
-  describe "class structure" do
-    it "exists as a Ruby class" do
-      expect(defined?(GTE::Embedder)).to eq("constant")
+RSpec.describe 'GTE::Embedder' do
+  describe 'class structure' do
+    it 'exists as a Ruby class' do
+      expect(defined?(GTE::Embedder)).to eq('constant')
     end
 
-    it "has a .new class method" do
+    it 'has a .new class method' do
       expect(GTE::Embedder).to respond_to(:new)
     end
 
-    it "responds to :embed" do
+    it 'responds to :embed' do
       expect(GTE::Embedder.instance_methods(false)).to include(:embed)
     end
 
-    it "defines GTE::Tensor" do
-      expect(defined?(GTE::Tensor)).to eq("constant")
+    it 'defines GTE::Tensor' do
+      expect(defined?(GTE::Tensor)).to eq('constant')
     end
   end
 
-  describe "GTE::Error" do
-    it "is a subclass of StandardError (not RuntimeError)" do
+  describe 'GTE::Error' do
+    it 'is a subclass of StandardError (not RuntimeError)' do
       expect(GTE::Error.ancestors).to include(StandardError)
       expect(GTE::Error.superclass).to eq(StandardError)
     end
   end
 
-  describe ".new with invalid directory" do
-    it "raises GTE::Error when directory does not contain model" do
-      expect {
-        GTE::Embedder.new("/nonexistent/dir", 0, 3)
-      }.to raise_error(GTE::Error)
+  describe '.new with invalid directory' do
+    it 'raises GTE::Error when directory does not contain model' do
+      expect do
+        GTE::Embedder.new('/nonexistent/dir', 0, 3)
+      end.to raise_error(GTE::Error)
     end
   end
 
-
-  context "with real model fixture", if: GTE_FIXTURES_AVAILABLE do
+  context 'with real model fixture', if: GTE_FIXTURES_AVAILABLE do
     let(:embedder) { GTE::Embedder.new(GTE_E5_DIR, 0, 3) }
-    let(:sample_texts) { ["Hello world", "The quick brown fox"] }
-    let(:single_text)  { ["Hello world"] }
+    let(:sample_texts) { ['Hello world', 'The quick brown fox'] }
+    let(:single_text)  { ['Hello world'] }
 
-    describe "return structure" do
-      it "returns GTE::Tensor for a batch" do
+    describe 'return structure' do
+      it 'returns GTE::Tensor for a batch' do
         result = embedder.embed(sample_texts)
         expect(result).to be_a(GTE::Tensor)
         expect(result.rows).to eq(sample_texts.length)
@@ -60,7 +58,7 @@ RSpec.describe "GTE::Embedder" do
         expect(result.dim).to eq(GTE_EMBEDDING_DIM)
       end
 
-      it "supports binary row extraction for fast transfer" do
+      it 'supports binary row extraction for fast transfer' do
         result = embedder.embed(single_text)
         bytes = result.row_binary_f32(0)
         expect(bytes).to be_a(String)
@@ -68,36 +66,35 @@ RSpec.describe "GTE::Embedder" do
       end
     end
 
-    describe "output validity" do
-      it "contains only valid floats — no NaN values" do
+    describe 'output validity' do
+      it 'contains only valid floats — no NaN values' do
         result = embedder.embed(sample_texts).to_a
         result.each { |row| row.each { |val| expect(val).not_to be_nan } }
       end
 
-      it "contains only valid floats — no Inf values" do
+      it 'contains only valid floats — no Inf values' do
         result = embedder.embed(sample_texts).to_a
         result.each { |row| row.each { |val| expect(val.infinite?).to be_nil } }
       end
     end
 
-    describe "L2 normalization" do
-      it "returns L2-normalized vectors: norm of each row is approximately 1.0" do
+    describe 'L2 normalization' do
+      it 'returns L2-normalized vectors: norm of each row is approximately 1.0' do
         result = embedder.embed(sample_texts).to_a
         result.each_with_index do |row, i|
           l2_norm = Math.sqrt(row.sum { |v| v * v })
           expect(l2_norm).to be_within(1e-3).of(1.0),
-            "row #{i}: expected L2 norm ≈ 1.0, got #{l2_norm}"
+                             "row #{i}: expected L2 norm ≈ 1.0, got #{l2_norm}"
         end
       end
     end
 
-    describe "E5 prefix semantics" do
-      it "query-prefixed text produces different embedding than plain text" do
-        query_emb = embedder.embed(["query: machine learning"]).row(0)
-        plain_emb = embedder.embed(["machine learning"]).row(0)
+    describe 'E5 prefix semantics' do
+      it 'query-prefixed text produces different embedding than plain text' do
+        query_emb = embedder.embed(['query: machine learning']).row(0)
+        plain_emb = embedder.embed(['machine learning']).row(0)
         expect(query_emb).not_to eq(plain_emb)
       end
     end
   end
-
 end

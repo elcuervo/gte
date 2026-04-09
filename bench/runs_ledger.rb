@@ -1,16 +1,16 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require "json"
-require "optparse"
-require "pathname"
-require "time"
+require 'json'
+require 'optparse'
+require 'pathname'
+require 'time'
 
-ROOT = File.expand_path("..", __dir__)
-DEFAULT_RUNS_PATH = File.expand_path("RUNS.md", ROOT)
+ROOT = File.expand_path('..', __dir__)
+DEFAULT_RUNS_PATH = File.expand_path('RUNS.md', ROOT)
 DEFAULT_TOLERANCE = 0.05
 EXPECTED_MODELS = %w[e5 clip siglip2].freeze
-GOAL_METRIC = "response_time_p95"
+GOAL_METRIC = 'response_time_p95'
 
 class LedgerError < StandardError; end
 
@@ -28,64 +28,62 @@ def load_entries(runs_path)
   content = File.read(runs_path)
   blocks = content.scan(/```json\n(.*?)\n```/m).flatten
   blocks.filter_map do |block|
-    begin
-      JSON.parse(block)
-    rescue JSON::ParserError
-      nil
-    end
+    JSON.parse(block)
+  rescue JSON::ParserError
+    nil
   end
 end
 
 def previous_entry(entries, result)
-  generated_at = result.fetch("generated_at")
-  concurrency = result.fetch("concurrency", 16)
-  iterations = result.fetch("iterations", 0)
-  run_samples = result.fetch("run_samples", 1)
+  generated_at = result.fetch('generated_at')
+  concurrency = result.fetch('concurrency', 16)
+  iterations = result.fetch('iterations', 0)
+  run_samples = result.fetch('run_samples', 1)
   entries.reverse.find do |entry|
-    entry["kind"] == "puma_compare_run" &&
-      entry["generated_at"] != generated_at &&
-      entry.dig("thresholds", "goal_metric") == GOAL_METRIC &&
-      entry["concurrency"] == concurrency &&
-      entry["iterations"] == iterations &&
-      entry["run_samples"] == run_samples
+    entry['kind'] == 'puma_compare_run' &&
+      entry['generated_at'] != generated_at &&
+      entry.dig('thresholds', 'goal_metric') == GOAL_METRIC &&
+      entry['concurrency'] == concurrency &&
+      entry['iterations'] == iterations &&
+      entry['run_samples'] == run_samples
   end
 end
 
 def duplicate_entry?(entries, result)
-  generated_at = result.fetch("generated_at")
-  git_sha = result.fetch("git_sha", nil)
+  generated_at = result.fetch('generated_at')
+  git_sha = result.fetch('git_sha', nil)
   entries.any? do |entry|
-    entry["kind"] == "puma_compare_run" &&
-      entry["generated_at"] == generated_at &&
-      (git_sha.nil? || entry["git_sha"] == git_sha)
+    entry['kind'] == 'puma_compare_run' &&
+      entry['generated_at'] == generated_at &&
+      (git_sha.nil? || entry['git_sha'] == git_sha)
   end
 end
 
 def model_metrics(result, key)
-  model = result.fetch("models").fetch(key)
-  puma = model.fetch("puma_like")
-  gte = puma.fetch("gte").fetch("aggregate")
-  pure = puma.fetch("pure_ruby").fetch("aggregate")
+  model = result.fetch('models').fetch(key)
+  puma = model.fetch('puma_like')
+  gte = puma.fetch('gte').fetch('aggregate')
+  pure = puma.fetch('pure_ruby').fetch('aggregate')
 
   {
-    "gte_response_p95_ms" => gte.fetch("response_time").fetch("p95_ms"),
-    "pure_response_p95_ms" => pure.fetch("response_time").fetch("p95_ms"),
-    "response_ratio_p95" => puma.fetch("ratio_pure_over_gte").fetch("response_p95"),
-    "gte_response_median_ms" => gte.fetch("response_time").fetch("median_ms"),
-    "response_ratio_median" => puma.fetch("ratio_pure_over_gte").fetch("response_median"),
-    "gte_service_p95_ms" => gte.fetch("service_time").fetch("p95_ms"),
-    "pure_service_p95_ms" => pure.fetch("service_time").fetch("p95_ms"),
-    "service_ratio_p95" => puma.fetch("ratio_pure_over_gte").fetch("service_p95"),
-    "gte_throughput_rps" => gte.fetch("throughput_rps"),
-    "pure_throughput_rps" => pure.fetch("throughput_rps")
+    'gte_response_p95_ms' => gte.fetch('response_time').fetch('p95_ms'),
+    'pure_response_p95_ms' => pure.fetch('response_time').fetch('p95_ms'),
+    'response_ratio_p95' => puma.fetch('ratio_pure_over_gte').fetch('response_p95'),
+    'gte_response_median_ms' => gte.fetch('response_time').fetch('median_ms'),
+    'response_ratio_median' => puma.fetch('ratio_pure_over_gte').fetch('response_median'),
+    'gte_service_p95_ms' => gte.fetch('service_time').fetch('p95_ms'),
+    'pure_service_p95_ms' => pure.fetch('service_time').fetch('p95_ms'),
+    'service_ratio_p95' => puma.fetch('ratio_pure_over_gte').fetch('service_p95'),
+    'gte_throughput_rps' => gte.fetch('throughput_rps'),
+    'pure_throughput_rps' => pure.fetch('throughput_rps')
   }
 end
 
 def build_entry(result, previous:, tolerance:)
-  missing = EXPECTED_MODELS - result.fetch("models").keys
+  missing = EXPECTED_MODELS - result.fetch('models').keys
   raise LedgerError, "result missing expected models: #{missing.join(', ')}" unless missing.empty?
 
-  min_ratio = result.fetch("thresholds", {}).fetch("min_p95_ratio", 2.0).to_f
+  min_ratio = result.fetch('thresholds', {}).fetch('min_p95_ratio', 2.0).to_f
 
   metrics = {}
   regressions = {}
@@ -96,49 +94,49 @@ def build_entry(result, previous:, tolerance:)
     current = model_metrics(result, key)
     metrics[key] = current
 
-    ratio_pass &&= current.fetch("response_ratio_p95") >= min_ratio
+    ratio_pass &&= current.fetch('response_ratio_p95') >= min_ratio
 
-    if previous
-      prev_value = previous.dig("metrics", key, "gte_response_p95_ms")
-      if prev_value
-        allowed = prev_value.to_f * (1.0 + tolerance)
-        regressed = current.fetch("gte_response_p95_ms") > allowed
-        regressions[key] = {
-          "previous_gte_response_p95_ms" => prev_value,
-          "current_gte_response_p95_ms" => current.fetch("gte_response_p95_ms"),
-          "allowed_gte_response_p95_ms" => allowed,
-          "regressed" => regressed
-        }
-        regression_pass &&= !regressed
-      end
-    end
+    next unless previous
+
+    prev_value = previous.dig('metrics', key, 'gte_response_p95_ms')
+    next unless prev_value
+
+    allowed = prev_value.to_f * (1.0 + tolerance)
+    regressed = current.fetch('gte_response_p95_ms') > allowed
+    regressions[key] = {
+      'previous_gte_response_p95_ms' => prev_value,
+      'current_gte_response_p95_ms' => current.fetch('gte_response_p95_ms'),
+      'allowed_gte_response_p95_ms' => allowed,
+      'regressed' => regressed
+    }
+    regression_pass &&= !regressed
   end
 
   {
-    "kind" => "puma_compare_run",
-    "recorded_at" => Time.now.utc.iso8601,
-    "generated_at" => result.fetch("generated_at"),
-    "gem_version" => result.fetch("gem_version", "unknown"),
-    "git_sha" => result.fetch("git_sha", "unknown"),
-    "platform" => result.fetch("platform", RUBY_PLATFORM),
-    "ruby_version" => result.fetch("ruby_version", RUBY_VERSION),
-    "mode" => result.fetch("mode", "puma_like_in_process"),
-    "concurrency" => result.fetch("concurrency", 16),
-    "iterations" => result.fetch("iterations", 0),
-    "run_samples" => result.fetch("run_samples", 1),
-    "thresholds" => {
-      "goal_metric" => GOAL_METRIC,
-      "sample_aggregation" => result.dig("thresholds", "sample_aggregation") || "median",
-      "min_p95_ratio" => min_ratio,
-      "regression_tolerance" => tolerance
+    'kind' => 'puma_compare_run',
+    'recorded_at' => Time.now.utc.iso8601,
+    'generated_at' => result.fetch('generated_at'),
+    'gem_version' => result.fetch('gem_version', 'unknown'),
+    'git_sha' => result.fetch('git_sha', 'unknown'),
+    'platform' => result.fetch('platform', RUBY_PLATFORM),
+    'ruby_version' => result.fetch('ruby_version', RUBY_VERSION),
+    'mode' => result.fetch('mode', 'puma_like_in_process'),
+    'concurrency' => result.fetch('concurrency', 16),
+    'iterations' => result.fetch('iterations', 0),
+    'run_samples' => result.fetch('run_samples', 1),
+    'thresholds' => {
+      'goal_metric' => GOAL_METRIC,
+      'sample_aggregation' => result.dig('thresholds', 'sample_aggregation') || 'median',
+      'min_p95_ratio' => min_ratio,
+      'regression_tolerance' => tolerance
     },
-    "status" => {
-      "goal_response_p95_ratio_all_models" => ratio_pass,
-      "regression_vs_previous" => previous ? regression_pass : true,
-      "regression_baseline" => previous ? "previous_run" : "none"
+    'status' => {
+      'goal_response_p95_ratio_all_models' => ratio_pass,
+      'regression_vs_previous' => previous ? regression_pass : true,
+      'regression_baseline' => previous ? 'previous_run' : 'none'
     },
-    "metrics" => metrics,
-    "regressions" => regressions
+    'metrics' => metrics,
+    'regressions' => regressions
   }
 end
 
@@ -156,45 +154,46 @@ def append_entry(runs_path, entry)
     MD
   end
 
-  status_goal = entry.dig("status", "goal_response_p95_ratio_all_models") ? "PASS" : "FAIL"
-  status_regression = entry.dig("status", "regression_vs_previous") ? "PASS" : "FAIL"
+  status_goal = entry.dig('status', 'goal_response_p95_ratio_all_models') ? 'PASS' : 'FAIL'
+  status_regression = entry.dig('status', 'regression_vs_previous') ? 'PASS' : 'FAIL'
 
-  File.open(runs_path, "a") do |f|
+  File.open(runs_path, 'a') do |f|
     f.puts
     f.puts "## #{entry.fetch('generated_at')} | v#{entry.fetch('gem_version')} | #{entry.fetch('git_sha')}"
     f.puts "- Goal (response-time p95 ratio all models): #{status_goal}"
-    f.puts "- Regression vs previous run (GTE response-time p95 <= +#{(entry.dig('thresholds', 'regression_tolerance') * 100).round(1)}%): #{status_regression}"
+    f.puts "- Regression vs previous run (GTE response-time p95 <= +#{(entry.dig('thresholds',
+                                                                                 'regression_tolerance') * 100).round(1)}%): #{status_regression}"
     f.puts
-    f.puts "```json"
+    f.puts '```json'
     f.puts JSON.pretty_generate(entry)
-    f.puts "```"
+    f.puts '```'
   end
 end
 
 def current_version
-  File.read(File.expand_path("../VERSION", __dir__)).strip
+  File.read(File.expand_path('../VERSION', __dir__)).strip
 end
 
 def check_entry!(entry)
   failures = []
-  unless entry.dig("status", "goal_response_p95_ratio_all_models")
-    failures << "goal failure: one or more models did not hit response-time p95 2x ratio"
+  unless entry.dig('status', 'goal_response_p95_ratio_all_models')
+    failures << 'goal failure: one or more models did not hit response-time p95 2x ratio'
   end
 
-  unless entry.dig("status", "regression_vs_previous")
-    failures << "regression failure: one or more models regressed above allowed response-time p95 tolerance"
+  unless entry.dig('status', 'regression_vs_previous')
+    failures << 'regression failure: one or more models regressed above allowed response-time p95 tolerance'
   end
 
   failures
 end
 
 def latest_result_path
-  Dir.glob(File.expand_path("results/puma_compare_*.json", __dir__)).max
+  Dir.glob(File.expand_path('results/puma_compare_*.json', __dir__)).max
 end
 
 command = ARGV.shift
 case command
-when "append"
+when 'append'
   options = {
     runs: DEFAULT_RUNS_PATH,
     tolerance: DEFAULT_TOLERANCE,
@@ -202,13 +201,13 @@ when "append"
   }
 
   OptionParser.new do |opts|
-    opts.on("--result PATH") { |value| options[:result] = File.expand_path(value, ROOT) }
-    opts.on("--runs PATH") { |value| options[:runs] = File.expand_path(value, ROOT) }
-    opts.on("--max-regression FLOAT", Float) { |value| options[:tolerance] = value }
-    opts.on("--latest") { options[:result] = latest_result_path }
+    opts.on('--result PATH') { |value| options[:result] = File.expand_path(value, ROOT) }
+    opts.on('--runs PATH') { |value| options[:runs] = File.expand_path(value, ROOT) }
+    opts.on('--max-regression FLOAT', Float) { |value| options[:tolerance] = value }
+    opts.on('--latest') { options[:result] = latest_result_path }
   end.parse!(ARGV)
 
-  raise LedgerError, "--result PATH or --latest is required" unless options[:result]
+  raise LedgerError, '--result PATH or --latest is required' unless options[:result]
 
   result = load_result(options[:result])
   entries = load_entries(options[:runs])
@@ -222,8 +221,18 @@ when "append"
 
   append_entry(options[:runs], entry)
   puts "Appended run to #{Pathname.new(options[:runs]).relative_path_from(Pathname.new(ROOT))}"
-  puts "goal=#{entry.dig('status', 'goal_response_p95_ratio_all_models') ? 'PASS' : 'FAIL'} regression=#{entry.dig('status', 'regression_vs_previous') ? 'PASS' : 'FAIL'}"
-when "check"
+  puts "goal=#{if entry.dig('status',
+                            'goal_response_p95_ratio_all_models')
+                 'PASS'
+               else
+                 'FAIL'
+               end} regression=#{if entry.dig('status',
+                                              'regression_vs_previous')
+                                   'PASS'
+                                 else
+                                   'FAIL'
+                                 end}"
+when 'check'
   options = {
     runs: DEFAULT_RUNS_PATH,
     tolerance: DEFAULT_TOLERANCE,
@@ -232,14 +241,14 @@ when "check"
   }
 
   OptionParser.new do |opts|
-    opts.on("--result PATH") { |value| options[:result] = File.expand_path(value, ROOT) }
-    opts.on("--runs PATH") { |value| options[:runs] = File.expand_path(value, ROOT) }
-    opts.on("--max-regression FLOAT", Float) { |value| options[:tolerance] = value }
-    opts.on("--latest") { options[:result] = latest_result_path }
-    opts.on("--[no-]require-current-version") { |value| options[:require_current_version] = value }
+    opts.on('--result PATH') { |value| options[:result] = File.expand_path(value, ROOT) }
+    opts.on('--runs PATH') { |value| options[:runs] = File.expand_path(value, ROOT) }
+    opts.on('--max-regression FLOAT', Float) { |value| options[:tolerance] = value }
+    opts.on('--latest') { options[:result] = latest_result_path }
+    opts.on('--[no-]require-current-version') { |value| options[:require_current_version] = value }
   end.parse!(ARGV)
 
-  raise LedgerError, "--result PATH or --latest is required" unless options[:result]
+  raise LedgerError, '--result PATH or --latest is required' unless options[:result]
 
   result = load_result(options[:result])
   entries = load_entries(options[:runs])
@@ -249,28 +258,28 @@ when "check"
   failures = check_entry!(entry)
 
   if options[:require_current_version]
-    versions = entries.filter_map { |entry_item| entry_item["gem_version"] }
-    versions << result.fetch("gem_version", nil)
+    versions = entries.filter_map { |entry_item| entry_item['gem_version'] }
+    versions << result.fetch('gem_version', nil)
     unless versions.compact.include?(current_version)
       failures << "version coverage failure: RUNS.md has no run for current VERSION=#{current_version}"
     end
   end
 
   if failures.empty?
-    puts "PASS: goal and regression checks succeeded"
+    puts 'PASS: goal and regression checks succeeded'
   else
-    warn "FAIL: run checks failed"
+    warn 'FAIL: run checks failed'
     failures.each { |failure| warn "  - #{failure}" }
     exit 1
   end
-when "verify-current-version"
+when 'verify-current-version'
   options = { runs: DEFAULT_RUNS_PATH }
   OptionParser.new do |opts|
-    opts.on("--runs PATH") { |value| options[:runs] = File.expand_path(value, ROOT) }
+    opts.on('--runs PATH') { |value| options[:runs] = File.expand_path(value, ROOT) }
   end.parse!(ARGV)
 
   entries = load_entries(options[:runs])
-  versions = entries.filter_map { |entry_item| entry_item["gem_version"] }
+  versions = entries.filter_map { |entry_item| entry_item['gem_version'] }
   if versions.include?(current_version)
     puts "PASS: RUNS.md contains current VERSION=#{current_version}"
   else
