@@ -1,17 +1,10 @@
 # frozen_string_literal: true
 
-begin
-  require 'bundler/gem_tasks'
-rescue LoadError
-end
-
+require 'bundler/gem_tasks'
 require 'rake/extensiontask'
+require 'rspec/core/rake_task'
 
-begin
-  require 'rspec/core/rake_task'
-  RSpec::Core::RakeTask.new(:spec)
-rescue LoadError
-end
+RSpec::Core::RakeTask.new(:spec)
 
 spec = Gem::Specification.load('gte.gemspec')
 
