@@ -1,34 +1,21 @@
 use crate::error::{GteError, Result};
-use ndarray::Array2;
 use std::path::Path;
 use tokenizers::{PaddingParams, PaddingStrategy, TruncationParams};
 
-/// Output of a batch tokenization — three parallel Array2<i64> tensors.
 pub struct Tokenized {
-    /// Token IDs for each sequence in the batch — shape: [batch, seq]
-    pub input_ids: Array2<i64>,
-    /// Attention mask (1 = real token, 0 = padding) — shape: [batch, seq]
-    pub attn_masks: Array2<i64>,
-    /// Token type IDs (segment IDs), present only when `with_type_ids` is true — shape: [batch, seq]
-    pub type_ids: Option<Array2<i64>>,
+    pub rows: usize,
+    pub cols: usize,
+    pub input_ids: Vec<i64>,
+    pub attn_masks: Vec<i64>,
+    pub type_ids: Option<Vec<i64>>,
 }
 
-/// Wraps a HuggingFace tokenizer loaded from a `tokenizer.json` file.
-///
-/// Configured once at construction time with:
-/// - Truncation at `max_length` tokens (RUST-05)
-/// - BatchLongest padding strategy (pads each batch to its longest sequence)
 pub struct Tokenizer {
     tokenizer: tokenizers::Tokenizer,
     with_type_ids: bool,
 }
 
 impl Tokenizer {
-    /// Load a tokenizer from a `tokenizer.json` file, configuring truncation and padding.
-    ///
-    /// - `tokenizer_path`: path to a `tokenizer.json` file (HuggingFace format)
-    /// - `max_length`: truncate inputs to at most this many tokens (RUST-05)
-    /// - `with_type_ids`: whether to produce `token_type_ids` tensors (required by E5/BERT)
     pub fn new<P: AsRef<Path>>(
         tokenizer_path: P,
         max_length: usize,
@@ -37,14 +24,12 @@ impl Tokenizer {
         let mut tokenizer = tokenizers::Tokenizer::from_file(tokenizer_path)
             .map_err(|e| GteError::Tokenizer(e.to_string()))?;
 
-        // Configure truncation — with_truncation returns Result; always propagate (Pitfall 4)
         let mut truncation = TruncationParams::default();
         truncation.max_length = max_length;
         tokenizer
             .with_truncation(Some(truncation))
             .map_err(|e| GteError::Tokenizer(e.to_string()))?;
 
-        // Configure padding — with_padding is infallible, no ? needed
         let mut padding = PaddingParams::default();
         padding.strategy = PaddingStrategy::BatchLongest;
         tokenizer.with_padding(Some(padding));
@@ -55,45 +40,87 @@ impl Tokenizer {
         })
     }
 
-    /// Tokenize a batch of strings, returning parallel Array2<i64> tensors.
-    ///
-    /// All sequences in the batch are padded to the length of the longest one
-    /// (BatchLongest), and truncated to `max_length` if necessary.
-    pub fn tokenize(&self, texts: Vec<String>) -> Result<Tokenized> {
-        let encodings = self
-            .tokenizer
-            .encode_batch(texts, true)
-            .map_err(|e| GteError::Tokenizer(e.to_string()))?;
-
-        let max_tokens = encodings.first().map(|e| e.len()).unwrap_or(0);
-
-        let mut input_ids = Array2::<i64>::zeros((0, max_tokens));
-        let mut attn_masks = Array2::<i64>::zeros((0, max_tokens));
-        let mut type_ids = self
-            .with_type_ids
-            .then(|| Array2::<i64>::zeros((0, max_tokens)));
-
-        for enc in &encodings {
-            let ids: Vec<i64> = enc.get_ids().iter().map(|&x| x as i64).collect();
-            let masks: Vec<i64> = enc.get_attention_mask().iter().map(|&x| x as i64).collect();
-
-            // push_row can only fail on shape mismatch, which is impossible here
-            // because all rows have length `max_tokens` by construction (BatchLongest padding)
-            input_ids.push_row(ndarray::ArrayView::from(&ids)).unwrap();
-            attn_masks
-                .push_row(ndarray::ArrayView::from(&masks))
-                .unwrap();
-
-            if let Some(ref mut t) = type_ids {
-                let tids: Vec<i64> = enc.get_type_ids().iter().map(|&x| x as i64).collect();
-                t.push_row(ndarray::ArrayView::from(&tids)).unwrap();
-            }
+    pub fn tokenize(&self, texts: &[String]) -> Result<Tokenized> {
+        if texts.len() == 1 {
+            let encoding = self
+                .tokenizer
+                .encode_fast(texts[0].as_str(), true)
+                .map_err(|e| GteError::Tokenizer(e.to_string()))?;
+            return build_tokenized_single(&encoding, self.with_type_ids);
         }
 
-        Ok(Tokenized {
-            input_ids,
-            attn_masks,
-            type_ids,
-        })
+        let encode_inputs: Vec<&str> = texts.iter().map(String::as_str).collect();
+        let encodings = self
+            .tokenizer
+            .encode_batch_fast(encode_inputs, true)
+            .map_err(|e| GteError::Tokenizer(e.to_string()))?;
+
+        build_tokenized(&encodings, self.with_type_ids)
     }
+}
+
+fn build_tokenized_single(encoding: &tokenizers::Encoding, with_type_ids: bool) -> Result<Tokenized> {
+    let cols = encoding.len();
+
+    let input_ids: Vec<i64> = encoding.get_ids().iter().map(|&value| i64::from(value)).collect();
+    let attn_masks: Vec<i64> = encoding
+        .get_attention_mask()
+        .iter()
+        .map(|&value| i64::from(value))
+        .collect();
+    let type_ids: Option<Vec<i64>> = with_type_ids.then(|| {
+        encoding
+            .get_type_ids()
+            .iter()
+            .map(|&value| i64::from(value))
+            .collect()
+    });
+
+    Ok(Tokenized {
+        rows: 1,
+        cols,
+        input_ids,
+        attn_masks,
+        type_ids,
+    })
+}
+
+fn build_tokenized(encodings: &[tokenizers::Encoding], with_type_ids: bool) -> Result<Tokenized> {
+    let rows = encodings.len();
+    let cols = encodings
+        .first()
+        .map(|encoding| encoding.len())
+        .unwrap_or(0);
+    let len = rows * cols;
+
+    let mut input_ids = Vec::with_capacity(len);
+    let mut attn_masks = Vec::with_capacity(len);
+    let mut type_ids = with_type_ids.then(|| Vec::with_capacity(len));
+
+    for encoding in encodings {
+        input_ids.extend(encoding.get_ids().iter().map(|&value| i64::from(value)));
+        attn_masks.extend(
+            encoding
+                .get_attention_mask()
+                .iter()
+                .map(|&value| i64::from(value)),
+        );
+
+        if let Some(type_ids) = type_ids.as_mut() {
+            type_ids.extend(
+                encoding
+                    .get_type_ids()
+                    .iter()
+                    .map(|&value| i64::from(value)),
+            );
+        }
+    }
+
+    Ok(Tokenized {
+        rows,
+        cols,
+        input_ids,
+        attn_masks,
+        type_ids,
+    })
 }

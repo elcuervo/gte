@@ -10,11 +10,17 @@ module GTE
       @embedder = GTE::Embedder.new(dir, num_threads, optimization_level)
     end
 
-    def embed(texts) = @embedder.embed(Array(texts))
+    def embed(texts)
+      if texts.is_a?(String)
+        @embedder.embed_one(texts)
+      else
+        @embedder.embed(Array(texts))
+      end
+    end
 
     def [](input)
       case input
-      when String then embed([input]).first
+      when String then embed(input).row(0)
       when Array  then embed(input)
       end
     end
