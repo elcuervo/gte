@@ -52,11 +52,24 @@ pub fn mean_pool(
 }
 
 pub fn normalize_l2(mut embeddings: Array2<f32>) -> Array2<f32> {
+    let cols = embeddings.ncols();
+    if let Some(data) = embeddings.as_slice_mut() {
+        for row in data.chunks_mut(cols) {
+            let norm = row.iter().map(|v| v * v).sum::<f32>().sqrt();
+            if norm > 0.0 {
+                let inv = norm.recip();
+                for v in row.iter_mut() {
+                    *v *= inv;
+                }
+            }
+        }
+        return embeddings;
+    }
+    // non-contiguous fallback
     for mut row in embeddings.rows_mut() {
         let norm = row.iter().map(|value| value * value).sum::<f32>().sqrt();
         if norm > 0.0 {
-            let inverse = norm.recip();
-            row.map_inplace(|value| *value *= inverse);
+            row.map_inplace(|value| *value *= norm.recip());
         }
     }
     embeddings

@@ -100,6 +100,12 @@ impl Embedder {
             optimization_level,
         };
 
+        let session = if tuned_num_threads != num_threads {
+            build_session(&model_path, &config)?
+        } else {
+            session
+        };
+
         let tokenizer = Tokenizer::new(&tokenizer_path, config.max_length, config.with_type_ids)?;
 
         Ok(Self {
@@ -202,12 +208,14 @@ fn resolve_model_path(dir: &Path) -> Result<PathBuf> {
     )))
 }
 
+const SUPPORTED_INPUTS: [&str; 3] = ["input_ids", "attention_mask", "token_type_ids"];
+
 fn validate_supported_inputs(session: &Session) -> Result<()> {
     let unsupported: Vec<String> = session
         .inputs
         .iter()
-        .map(|input| input.name.clone())
-        .filter(|name| name != "input_ids" && name != "attention_mask" && name != "token_type_ids")
+        .filter(|i| !SUPPORTED_INPUTS.contains(&i.name.as_str()))
+        .map(|i| i.name.clone())
         .collect();
 
     if unsupported.is_empty() {
@@ -259,32 +267,16 @@ fn select_output_tensor(session: &Session) -> Result<String> {
 }
 
 fn read_max_length(dir: &Path) -> usize {
-    let config_path = dir.join("tokenizer_config.json");
-    if let Ok(contents) = std::fs::read_to_string(&config_path) {
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&contents) {
-            if let Some(value) = json.get("model_max_length") {
-                if let Some(max_len) = value.as_u64() {
-                    return (max_len as usize).min(8192);
-                }
-                if let Some(max_len) = value.as_i64() {
-                    if max_len > 0 {
-                        return (max_len as usize).min(8192);
-                    }
-                }
-                let numeric_string = match value {
-                    serde_json::Value::Number(n) => Some(n.to_string()),
-                    serde_json::Value::String(s) => Some(s.clone()),
-                    _ => None,
-                };
-                if let Some(raw) = numeric_string {
-                    if let Ok(max_len) = raw.parse::<u128>() {
-                        return max_len.min(8192) as usize;
-                    }
-                }
-            }
-        }
-    }
-    512
+    (|| -> Option<usize> {
+        let contents = std::fs::read_to_string(dir.join("tokenizer_config.json")).ok()?;
+        let json: serde_json::Value = serde_json::from_str(&contents).ok()?;
+        let v = json.get("model_max_length")?;
+        let n = v
+            .as_u64()
+            .or_else(|| v.as_f64().filter(|&f| f > 0.0 && f < 1e15).map(|f| f as u64))?;
+        Some((n as usize).min(8192))
+    })()
+    .unwrap_or(512)
 }
 
 #[cfg(test)]

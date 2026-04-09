@@ -36,8 +36,13 @@ pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Res
 }
 
 fn preferred_execution_providers() -> Vec<ExecutionProviderDispatch> {
+    let default_providers = if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        "xnnpack,coreml"
+    } else {
+        "xnnpack"
+    };
     let order = std::env::var("GTE_EXECUTION_PROVIDERS")
-        .unwrap_or_else(|_| "xnnpack".to_string())
+        .unwrap_or_else(|_| default_providers.to_string())
         .to_ascii_lowercase();
 
     let mut providers = Vec::new();
@@ -104,11 +109,11 @@ pub fn run_session(
             Ok(array.slice(ndarray::s![.., idx, ..]).into_owned())
         }
         ExtractorMode::MeanPool => {
-            let shape = array.shape().to_vec();
+            let ndim = array.ndim();
             let hidden_states = array.into_dimensionality::<ndarray::Ix3>().map_err(|_| {
                 GteError::Inference(format!(
-                    "mean pooling requires rank-3 output, got shape {:?}",
-                    shape
+                    "mean pooling requires rank-3 output, got rank {}",
+                    ndim
                 ))
             })?;
             mean_pool(hidden_states, attn_masks_view)

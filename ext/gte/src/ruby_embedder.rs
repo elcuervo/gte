@@ -77,6 +77,19 @@ unsafe extern "C" fn run_without_gvl(ptr: *mut c_void) -> *mut c_void {
     std::ptr::null_mut()
 }
 
+fn tensor_from_array(embeddings: ndarray::Array2<f32>) -> Result<RbTensor, Error> {
+    let rows = embeddings.nrows();
+    let cols = embeddings.ncols();
+    let (data, offset) = embeddings.into_raw_vec_and_offset();
+    if let Some(off) = offset.filter(|&o| o != 0) {
+        return Err(magnus::Error::from(GteError::Inference(format!(
+            "unexpected non-zero tensor offset: {}",
+            off
+        ))));
+    }
+    Ok(RbTensor { rows, cols, data })
+}
+
 impl RbEmbedder {
     pub fn rb_new(
         _ruby: &Ruby,
@@ -94,30 +107,12 @@ impl RbEmbedder {
     pub fn rb_embed(_ruby: &Ruby, rb_self: &Self, texts: RArray) -> Result<RbTensor, Error> {
         let texts: Vec<String> = texts.to_vec()?;
         let embeddings = infer_without_gvl(&rb_self.inner, texts)?;
-
-        let rows = embeddings.nrows();
-        let cols = embeddings.ncols();
-        let (data, offset) = embeddings.into_raw_vec_and_offset();
-        if let Some(non_zero) = offset.filter(|off| *off != 0) {
-            return Err(magnus::Error::from(GteError::Inference(format!(
-                "unexpected non-zero tensor offset: {}",
-                non_zero
-            ))));
-        }
-        Ok(RbTensor { rows, cols, data })
+        tensor_from_array(embeddings)
     }
 
     pub fn rb_embed_one(_ruby: &Ruby, rb_self: &Self, text: String) -> Result<RbTensor, Error> {
         let embeddings = infer_without_gvl(&rb_self.inner, vec![text])?;
-        let cols = embeddings.ncols();
-        let (data, offset) = embeddings.into_raw_vec_and_offset();
-        if let Some(non_zero) = offset.filter(|off| *off != 0) {
-            return Err(magnus::Error::from(GteError::Inference(format!(
-                "unexpected non-zero tensor offset: {}",
-                non_zero
-            ))));
-        }
-        Ok(RbTensor { rows: 1, cols, data })
+        tensor_from_array(embeddings)
     }
 }
 
