@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
-require 'gte/gte'
+begin
+  require "tokenizers/#{RUBY_VERSION.to_f}/tokenizers"
+rescue LoadError
+  require "tokenizers/tokenizers"
+end
 
 module GTE
   VERSION = File.read(File.expand_path('../VERSION', __dir__)).strip
