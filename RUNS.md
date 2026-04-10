@@ -19,7 +19,7 @@ Performance run ledger for Puma-like single-request concurrency benchmarks.
 - Do not change Rust inference-path code unless a candidate configuration/change beats the current baseline by at least `5%` on `gte_response_p95_ms` for `e5`, `clip`, and `siglip2`.
 - Require that improvement in two consecutive replicate runs under the reproducibility protocol.
 
-## 2026-04-09T18:48:39Z | v0.1.0 | e1e944c
+## 2026-04-09T18:48:39Z | v0.0.1 | e1e944c
 - Goal (p95 ratio all models): FAIL
 - Regression vs previous run (GTE p95 <= +5.0%): PASS
 
@@ -28,7 +28,7 @@ Performance run ledger for Puma-like single-request concurrency benchmarks.
   "kind": "puma_compare_run",
   "recorded_at": "2026-04-09T18:48:50Z",
   "generated_at": "2026-04-09T18:48:39Z",
-  "gem_version": "0.1.0",
+  "gem_version": "0.0.1",
   "git_sha": "e1e944c",
   "platform": "arm64-darwin25",
   "ruby_version": "3.4.8",
@@ -74,7 +74,7 @@ Performance run ledger for Puma-like single-request concurrency benchmarks.
 }
 ```
 
-## 2026-04-09T18:49:35Z | v0.1.0 | e1e944c
+## 2026-04-09T18:49:35Z | v0.0.1 | e1e944c
 - Goal (p95 ratio all models): FAIL
 - Regression vs previous run (GTE p95 <= +5.0%): FAIL
 
@@ -83,7 +83,7 @@ Performance run ledger for Puma-like single-request concurrency benchmarks.
   "kind": "puma_compare_run",
   "recorded_at": "2026-04-09T18:49:50Z",
   "generated_at": "2026-04-09T18:49:35Z",
-  "gem_version": "0.1.0",
+  "gem_version": "0.0.1",
   "git_sha": "e1e944c",
   "platform": "arm64-darwin25",
   "ruby_version": "3.4.8",
@@ -148,7 +148,7 @@ Performance run ledger for Puma-like single-request concurrency benchmarks.
 }
 ```
 
-## 2026-04-09T19:07:10Z | v0.1.0 | e1e944c
+## 2026-04-09T19:07:10Z | v0.0.1 | e1e944c
 - Goal (response-time p95 ratio all models): PASS
 - Regression vs previous run (GTE response-time p95 <= +5.0%): PASS
 
@@ -157,7 +157,7 @@ Performance run ledger for Puma-like single-request concurrency benchmarks.
   "kind": "puma_compare_run",
   "recorded_at": "2026-04-09T19:07:26Z",
   "generated_at": "2026-04-09T19:07:10Z",
-  "gem_version": "0.1.0",
+  "gem_version": "0.0.1",
   "git_sha": "e1e944c",
   "platform": "arm64-darwin25",
   "ruby_version": "3.4.8",
@@ -218,7 +218,7 @@ Performance run ledger for Puma-like single-request concurrency benchmarks.
 }
 ```
 
-## 2026-04-09T19:08:23Z | v0.1.0 | e1e944c
+## 2026-04-09T19:08:23Z | v0.0.1 | e1e944c
 - Goal (response-time p95 ratio all models): FAIL
 - Regression vs previous run (GTE response-time p95 <= +5.0%): PASS
 
@@ -227,7 +227,7 @@ Performance run ledger for Puma-like single-request concurrency benchmarks.
   "kind": "puma_compare_run",
   "recorded_at": "2026-04-09T19:08:29Z",
   "generated_at": "2026-04-09T19:08:23Z",
-  "gem_version": "0.1.0",
+  "gem_version": "0.0.1",
   "git_sha": "e1e944c",
   "platform": "arm64-darwin25",
   "ruby_version": "3.4.8",
@@ -307,7 +307,7 @@ Performance run ledger for Puma-like single-request concurrency benchmarks.
 }
 ```
 
-## 2026-04-09T19:10:56Z | v0.1.0 | e1e944c
+## 2026-04-09T19:10:56Z | v0.0.1 | e1e944c
 - Goal (response-time p95 ratio all models): PASS
 - Regression vs previous run (GTE response-time p95 <= +5.0%): PASS
 
@@ -316,7 +316,7 @@ Performance run ledger for Puma-like single-request concurrency benchmarks.
   "kind": "puma_compare_run",
   "recorded_at": "2026-04-09T19:11:08Z",
   "generated_at": "2026-04-09T19:10:56Z",
-  "gem_version": "0.1.0",
+  "gem_version": "0.0.1",
   "git_sha": "e1e944c",
   "platform": "arm64-darwin25",
   "ruby_version": "3.4.8",
@@ -396,7 +396,7 @@ Performance run ledger for Puma-like single-request concurrency benchmarks.
 }
 ```
 
-## 2026-04-09T19:58:23Z | v0.1.0 | ee62fbb
+## 2026-04-09T19:58:23Z | v0.0.1 | ee62fbb
 - Goal (response-time p95 ratio all models): PASS
 - Regression vs previous run (GTE response-time p95 <= +5.0%): PASS
 
@@ -405,7 +405,7 @@ Performance run ledger for Puma-like single-request concurrency benchmarks.
   "kind": "puma_compare_run",
   "recorded_at": "2026-04-09T19:58:56Z",
   "generated_at": "2026-04-09T19:58:23Z",
-  "gem_version": "0.1.0",
+  "gem_version": "0.0.1",
   "git_sha": "ee62fbb",
   "platform": "arm64-darwin25",
   "ruby_version": "3.4.8",
