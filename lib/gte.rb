@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 begin
-  require "tokenizers/#{RUBY_VERSION.to_f}/tokenizers"
+  require 'gte/#{RUBY_VERSION.to_f}/gte'
 rescue LoadError
-  require "tokenizers/tokenizers"
+  require 'gte/gte'
 end
 
 module GTE
