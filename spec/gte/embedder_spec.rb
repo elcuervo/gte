@@ -31,7 +31,7 @@ RSpec.describe 'GTE::Embedder' do
   describe '.new with invalid directory' do
     it 'raises GTE::Error when directory does not contain model' do
       expect do
-        GTE::Embedder.new('/nonexistent/dir', 0, 3)
+        GTE::Embedder.new('/nonexistent/dir', 0, 3, '')
       end.to raise_error(GTE::Error)
     end
   end
