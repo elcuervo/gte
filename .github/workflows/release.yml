@@ -15,7 +15,7 @@ jobs:
           - platform: arm64-darwin
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: oxidize-rb/actions/setup-ruby-and-rust@v1.4.4
         with:
@@ -34,7 +34,7 @@ jobs:
   source:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: ruby/setup-ruby@v1
         with:
@@ -53,16 +53,28 @@ jobs:
     needs: [build, source]
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      id-token: write
+
+    environment: release
+
     steps:
       - uses: actions/download-artifact@v6
         with:
           path: gems
           merge-multiple: true
 
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Configure RubyGems credentials
+        uses: rubygems/configure-rubygems-credentials@main
+
       - name: Publish to RubyGems
-        env:
-          GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
         run: |
+          ls -lah gems
           for gem in gems/*.gem; do
             gem push "$gem"
           done
