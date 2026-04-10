@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 begin
-  require 'gte/#{RUBY_VERSION.to_f}/gte'
+  require "gte/#{RUBY_VERSION.to_f}/gte"
 rescue LoadError
   require 'gte/gte'
 end
