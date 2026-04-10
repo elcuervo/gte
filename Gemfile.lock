@@ -2,6 +2,7 @@ PATH
   remote: .
   specs:
     gte (0.0.2)
+      rb_sys
 
 GEM
   remote: https://rubygems.org/
