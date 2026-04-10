@@ -40,10 +40,14 @@ impl Embedder {
         dir: P,
         num_threads: usize,
         optimization_level: u8,
+        model_name: Option<&str>,
     ) -> Result<Self> {
         let dir = dir.as_ref();
         let tokenizer_path = dir.join("tokenizer.json");
-        let model_path = resolve_model_path(dir)?;
+        let model_path = match model_name.filter(|s| !s.is_empty()) {
+            Some(name) => resolve_named_model(dir, name)?,
+            None => resolve_model_path(dir)?,
+        };
 
         if !tokenizer_path.exists() {
             return Err(GteError::Tokenizer(format!(
@@ -177,6 +181,20 @@ fn host_parallelism() -> usize {
     std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(1)
+}
+
+fn resolve_named_model(dir: &Path, name: &str) -> Result<PathBuf> {
+    let candidates = [dir.join("onnx").join(name), dir.join(name)];
+    for path in &candidates {
+        if path.exists() {
+            return Ok(path.clone());
+        }
+    }
+    Err(GteError::Inference(format!(
+        "model '{}' not found in {} (checked onnx/{0} and {0})",
+        name,
+        dir.display()
+    )))
 }
 
 fn resolve_model_path(dir: &Path) -> Result<PathBuf> {
