@@ -13,6 +13,12 @@ model = GTE.new(ENV.fetch("GTE_MODEL_DIR"))
 vector = model["query: hello world"]
 ```
 
+For Puma or other thread pools, prefer process-local reuse:
+
+```ruby
+MODEL = GTE.new(ENV.fetch("GTE_MODEL_DIR"))
+```
+
 ## Model Directory
 
 A model directory must include `tokenizer.json` and one ONNX model, resolved in this order:
@@ -40,6 +46,7 @@ The repo includes two benchmark paths:
 bundle exec rake bench:pure_compare
 bundle exec rake bench:puma_compare
 bundle exec rake bench:matrix_sweep
+bundle exec ruby bench/memory_probe.rb --compare-pure
 ```
 
 For release tracking and regression detection, record a run entry in `RUNS.md`:

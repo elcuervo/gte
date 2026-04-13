@@ -1,4 +1,4 @@
-.PHONY: setup compile test lint bench bench-record clean ci models
+.PHONY: setup compile test lint bench bench-memory bench-record clean ci models
 
 # All commands run inside nix develop
 NIX := nix develop -c
@@ -27,6 +27,9 @@ models:
 
 bench: compile models
 	$(NIX) bundle exec ruby bench/puma_compare.rb
+
+bench-memory: compile models
+	$(NIX) bundle exec ruby bench/memory_probe.rb --compare-pure
 
 bench-record: compile
 	$(NIX) bundle exec rake bench:record_run

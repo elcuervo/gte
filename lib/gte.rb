@@ -30,7 +30,28 @@ module GTE
     end
   end
 
+  @model_cache_mutex = Mutex.new
+  @model_cache = {}
+
   def self.new(dir, num_threads: 0, optimization_level: 3, model_name: nil)
-    Model.new(dir, num_threads: num_threads, optimization_level: optimization_level, model_name: model_name)
+    key = [
+      File.expand_path(dir),
+      Integer(num_threads),
+      Integer(optimization_level),
+      model_name.to_s
+    ].freeze
+
+    @model_cache_mutex.synchronize do
+      @model_cache[key] ||= Model.new(
+        key[0],
+        num_threads: key[1],
+        optimization_level: key[2],
+        model_name: key[3].empty? ? nil : key[3]
+      )
+    end
+  end
+
+  def self.fetch(dir, num_threads: 0, optimization_level: 3, model_name: nil)
+    new(dir, num_threads: num_threads, optimization_level: optimization_level, model_name: model_name)
   end
 end

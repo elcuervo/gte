@@ -48,6 +48,14 @@ namespace :bench do
     )
   end
 
+  desc 'Run memory probe for single-instance vs duplicate-instance behavior'
+  task :memory_probe do
+    run_in_nix(
+      'bundle', 'exec', 'ruby', 'bench/memory_probe.rb',
+      '--compare-pure'
+    )
+  end
+
   desc 'Run Puma benchmark, append RUNS.md entry, and enforce goal/regression checks'
   task :record_run do
     run_in_nix(

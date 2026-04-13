@@ -57,16 +57,17 @@ impl Embedder {
         }
 
         let max_length = read_max_length(dir);
+        let probe_num_threads = if num_threads == 0 { 1 } else { num_threads };
         let temp_config = ModelConfig {
             max_length,
             output_tensor: String::new(),
             mode: ExtractorMode::Raw,
             with_type_ids: false,
             with_attention_mask: true,
-            num_threads,
+            num_threads: probe_num_threads,
             optimization_level,
         };
-        let session = build_session(&model_path, &temp_config)?;
+        let mut session = build_session(&model_path, &temp_config)?;
 
         validate_supported_inputs(&session)?;
         let with_type_ids = session.inputs.iter().any(|i| i.name == "token_type_ids");
@@ -97,11 +98,11 @@ impl Embedder {
             optimization_level,
         };
 
-        let session = if tuned_num_threads != num_threads {
-            build_session(&model_path, &config)?
-        } else {
-            session
-        };
+        if tuned_num_threads != probe_num_threads {
+            // Release probe session before rebuilding to minimize transient peak RSS.
+            drop(session);
+            session = build_session(&model_path, &config)?;
+        }
 
         let tokenizer = Tokenizer::new(&tokenizer_path, config.max_length, config.with_type_ids)?;
 
