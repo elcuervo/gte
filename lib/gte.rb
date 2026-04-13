@@ -9,6 +9,9 @@ end
 module GTE
   VERSION = File.read(File.expand_path('../VERSION', __dir__)).strip
 
+  @model_cache_mutex = Mutex.new
+  @model_cache = {}
+
   class Model
     def initialize(dir, num_threads: 0, optimization_level: 3, model_name: nil)
       @embedder = GTE::Embedder.new(dir, num_threads, optimization_level, model_name.to_s)
@@ -30,14 +33,11 @@ module GTE
     end
   end
 
-  @model_cache_mutex = Mutex.new
-  @model_cache = {}
-
-  def self.new(dir, num_threads: 0, optimization_level: 3, model_name: nil)
+  def self.new(dir, threads: 0, optimization: 3, model_name: nil)
     key = [
       File.expand_path(dir),
-      Integer(num_threads),
-      Integer(optimization_level),
+      Integer(threads),
+      Integer(optimization),
       model_name.to_s
     ].freeze
 
