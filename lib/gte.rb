@@ -51,7 +51,5 @@ module GTE
     end
   end
 
-  def self.fetch(dir, num_threads: 0, optimization_level: 3, model_name: nil)
-    new(dir, num_threads: num_threads, optimization_level: optimization_level, model_name: model_name)
-  end
+  def self.fetch(*) = new(*)
 end
