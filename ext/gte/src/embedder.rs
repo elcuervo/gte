@@ -139,16 +139,13 @@ fn tune_num_threads(
     }
 
     let family = infer_model_family(with_attention_mask, with_type_ids, output_name);
-    let target_concurrency = puma_target_concurrency();
-    let host_cores = host_parallelism();
-    let budgeted_threads = (host_cores / target_concurrency).max(1);
 
     match family {
         // Puma-like workloads typically run many concurrent single-item requests where
         // one intra-op thread per request gives the best tail behavior.
-        ModelFamily::E5Like | ModelFamily::ClipLike | ModelFamily::SiglipLike => {
-            budgeted_threads.min(1)
-        }
+        ModelFamily::E5Like | ModelFamily::ClipLike => 1,
+        // Siglip2 text path benefits from a small intra-op pool under concurrency.
+        ModelFamily::SiglipLike => 3,
         ModelFamily::Other => 0,
     }
 }
@@ -168,20 +165,6 @@ fn infer_model_family(
         return ModelFamily::ClipLike;
     }
     ModelFamily::Other
-}
-
-fn puma_target_concurrency() -> usize {
-    std::env::var("GTE_PUMA_CONCURRENCY")
-        .ok()
-        .and_then(|raw| raw.parse::<usize>().ok())
-        .filter(|value| *value > 0)
-        .unwrap_or(16)
-}
-
-fn host_parallelism() -> usize {
-    std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(1)
 }
 
 fn resolve_named_model(dir: &Path, name: &str) -> Result<PathBuf> {
