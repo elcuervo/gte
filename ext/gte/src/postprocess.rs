@@ -106,8 +106,8 @@ fn mean_pool_contiguous(
 
         let mut weight_sum = 0.0f32;
 
-        for token_index in 0..seq {
-            let weight = mask_row[token_index];
+        for (token_index, &weight_raw) in mask_row.iter().enumerate() {
+            let weight = weight_raw;
             if weight <= 0 {
                 continue;
             }
