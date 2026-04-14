@@ -43,7 +43,9 @@ fn preferred_execution_providers() -> Vec<ExecutionProviderDispatch> {
     let mut providers = Vec::new();
     for provider in order.split(',').map(str::trim).filter(|p| !p.is_empty()) {
         match provider {
-            "xnnpack" => providers.push(XNNPACKExecutionProvider::default().build().fail_silently()),
+            "xnnpack" => {
+                providers.push(XNNPACKExecutionProvider::default().build().fail_silently())
+            }
             "coreml" => providers.push(CoreMLExecutionProvider::default().build().fail_silently()),
             "none" => {}
             _ => {}
@@ -57,10 +59,14 @@ pub fn run_session(
     tokenized: &Tokenized,
     config: &ModelConfig,
 ) -> Result<Array2<f32>> {
-    let input_ids_view: ArrayView2<'_, i64> =
-        ArrayView2::from_shape((tokenized.rows, tokenized.cols), tokenized.input_ids.as_slice())?;
-    let attn_masks_view: ArrayView2<'_, i64> =
-        ArrayView2::from_shape((tokenized.rows, tokenized.cols), tokenized.attn_masks.as_slice())?;
+    let input_ids_view: ArrayView2<'_, i64> = ArrayView2::from_shape(
+        (tokenized.rows, tokenized.cols),
+        tokenized.input_ids.as_slice(),
+    )?;
+    let attn_masks_view: ArrayView2<'_, i64> = ArrayView2::from_shape(
+        (tokenized.rows, tokenized.cols),
+        tokenized.attn_masks.as_slice(),
+    )?;
 
     let mut inputs = Vec::with_capacity(2 + usize::from(tokenized.type_ids.is_some()));
     inputs.push((

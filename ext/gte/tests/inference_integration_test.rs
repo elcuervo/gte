@@ -5,7 +5,8 @@ use gte::embedder::Embedder;
 fn test_e5_single_embedding_shape() {
     const DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/e5");
 
-    let embedder = Embedder::from_dir(DIR, 0, 3, None).expect("embedder should initialize");
+    let embedder =
+        Embedder::from_dir(DIR, 0, 3, None, None, None).expect("embedder should initialize");
     let result = embedder
         .embed(vec!["query: Hello world".to_string()])
         .expect("embed should succeed");
@@ -19,7 +20,8 @@ fn test_e5_single_embedding_shape() {
 fn test_clip_single_embedding_shape() {
     const DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/clip");
 
-    let embedder = Embedder::from_dir(DIR, 0, 3, None).expect("embedder should initialize");
+    let embedder =
+        Embedder::from_dir(DIR, 0, 3, None, None, None).expect("embedder should initialize");
     let result = embedder
         .embed(vec!["a photo of a cat".to_string()])
         .expect("embed should succeed");
@@ -33,7 +35,8 @@ fn test_clip_single_embedding_shape() {
 fn test_e5_batch_embedding_shape() {
     const DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/e5");
 
-    let embedder = Embedder::from_dir(DIR, 0, 3, None).expect("embedder should initialize");
+    let embedder =
+        Embedder::from_dir(DIR, 0, 3, None, None, None).expect("embedder should initialize");
     let texts = vec![
         "query: first sentence".to_string(),
         "query: second sentence".to_string(),
@@ -51,7 +54,8 @@ fn test_e5_batch_embedding_shape() {
 fn test_e5_long_input_truncation_no_error() {
     const DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/e5");
 
-    let embedder = Embedder::from_dir(DIR, 0, 3, None).expect("embedder should initialize");
+    let embedder =
+        Embedder::from_dir(DIR, 0, 3, None, None, None).expect("embedder should initialize");
     let very_long_text = "word ".repeat(1000);
     let result = embedder
         .embed(vec![very_long_text])

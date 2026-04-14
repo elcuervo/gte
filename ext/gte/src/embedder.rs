@@ -41,6 +41,8 @@ impl Embedder {
         num_threads: usize,
         optimization_level: u8,
         model_name: Option<&str>,
+        output_tensor_override: Option<&str>,
+        max_length_override: Option<usize>,
     ) -> Result<Self> {
         let dir = dir.as_ref();
         let tokenizer_path = dir.join("tokenizer.json");
@@ -56,7 +58,16 @@ impl Embedder {
             )));
         }
 
-        let max_length = read_max_length(dir);
+        let max_length = if let Some(override_value) = max_length_override {
+            if override_value == 0 {
+                return Err(GteError::Inference(
+                    "max_length override must be greater than 0".to_string(),
+                ));
+            }
+            override_value
+        } else {
+            read_max_length(dir)
+        };
         let probe_num_threads = if num_threads == 0 { 1 } else { num_threads };
         let temp_config = ModelConfig {
             max_length,
@@ -72,7 +83,7 @@ impl Embedder {
         validate_supported_inputs(&session)?;
         let with_type_ids = session.inputs.iter().any(|i| i.name == "token_type_ids");
         let with_attention_mask = session.inputs.iter().any(|i| i.name == "attention_mask");
-        let output_tensor = select_output_tensor(&session)?;
+        let output_tensor = select_output_tensor(&session, output_tensor_override)?;
         let output_base = output_basename(output_tensor.as_str()).to_string();
         let mode = infer_extraction_mode(&session, output_tensor.as_str())?;
         if matches!(mode, ExtractorMode::MeanPool) && !with_attention_mask {
@@ -125,7 +136,6 @@ impl Embedder {
     pub fn run(&self, tokenized: &Tokenized) -> crate::error::Result<Array2<f32>> {
         run_session(&self.session, tokenized, &self.config)
     }
-
 }
 
 fn tune_num_threads(
@@ -141,7 +151,7 @@ fn tune_num_threads(
     let family = infer_model_family(with_attention_mask, with_type_ids, output_name);
 
     match family {
-        ModelFamily::E5Like | ModelFamily::ClipLike | ModelFamily::SiglipLike => 3,
+        ModelFamily::E5Like | ModelFamily::ClipLike | ModelFamily::SiglipLike => 1,
         ModelFamily::Other => 0,
     }
 }
@@ -151,6 +161,9 @@ fn infer_model_family(
     with_type_ids: bool,
     output_name: &str,
 ) -> ModelFamily {
+    if output_name == "pooler_output" {
+        return ModelFamily::SiglipLike;
+    }
     if output_name == "last_hidden_state" && with_attention_mask && with_type_ids {
         return ModelFamily::E5Like;
     }
@@ -228,7 +241,27 @@ fn output_name_matches(name: &str, preferred: &str) -> bool {
     lower == preferred || lower.ends_with(&format!("/{}", preferred))
 }
 
-fn select_output_tensor(session: &Session) -> Result<String> {
+fn select_output_tensor(session: &Session, requested: Option<&str>) -> Result<String> {
+    if let Some(requested_name) = requested.map(str::trim).filter(|name| !name.is_empty()) {
+        if let Some(output) = session
+            .outputs
+            .iter()
+            .find(|o| output_name_matches(o.name.as_str(), requested_name))
+        {
+            return Ok(output.name.clone());
+        }
+        let available = session
+            .outputs
+            .iter()
+            .map(|o| o.name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(GteError::Inference(format!(
+            "requested output tensor '{}' not found in model outputs: {}",
+            requested_name, available
+        )));
+    }
+
     const PREFERRED: [&str; 4] = [
         "text_embeds",
         "pooler_output",
@@ -258,9 +291,11 @@ fn read_max_length(dir: &Path) -> usize {
         let contents = std::fs::read_to_string(dir.join("tokenizer_config.json")).ok()?;
         let json: serde_json::Value = serde_json::from_str(&contents).ok()?;
         let v = json.get("model_max_length")?;
-        let n = v
-            .as_u64()
-            .or_else(|| v.as_f64().filter(|&f| f > 0.0 && f < 1e15).map(|f| f as u64))?;
+        let n = v.as_u64().or_else(|| {
+            v.as_f64()
+                .filter(|&f| f > 0.0 && f < 1e15)
+                .map(|f| f as u64)
+        })?;
         Some((n as usize).min(8192))
     })()
     .unwrap_or(512)
@@ -284,7 +319,14 @@ mod tests {
             infer_model_family(false, false, "text_embeds"),
             ModelFamily::ClipLike
         );
-        assert_eq!(infer_model_family(true, false, "pooler_output"), ModelFamily::Other);
+        assert_eq!(
+            infer_model_family(false, false, "pooler_output"),
+            ModelFamily::SiglipLike
+        );
+        assert_eq!(
+            infer_model_family(true, false, "sentence_embedding"),
+            ModelFamily::Other
+        );
     }
 
     #[test]
@@ -293,15 +335,15 @@ mod tests {
     }
 
     #[test]
-    fn tune_num_threads_uses_three_threads_for_known_families() {
-        assert_eq!(tune_num_threads(0, true, true, "last_hidden_state"), 3);
-        assert_eq!(tune_num_threads(0, true, false, "last_hidden_state"), 3);
-        assert_eq!(tune_num_threads(0, false, false, "text_embeds"), 3);
+    fn tune_num_threads_uses_single_thread_for_known_families() {
+        assert_eq!(tune_num_threads(0, true, true, "last_hidden_state"), 1);
+        assert_eq!(tune_num_threads(0, true, false, "last_hidden_state"), 1);
+        assert_eq!(tune_num_threads(0, false, false, "text_embeds"), 1);
     }
 
     #[test]
     fn tune_num_threads_returns_ort_default_for_other_family() {
-        assert_eq!(tune_num_threads(0, true, false, "pooler_output"), 0);
+        assert_eq!(tune_num_threads(0, true, false, "sentence_embedding"), 0);
     }
 }
 

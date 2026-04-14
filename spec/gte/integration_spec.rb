@@ -104,6 +104,43 @@ RSpec.describe 'Integration' do
       expect(max_abs_diff(normalized, raw)).to be > 1e-6
       expect((raw_norm - 1.0).abs).to be > 1e-4
     end
+
+    it 'accepts an explicit output_tensor override' do
+      overridden = GTE.new(GTE_E5_DIR, output_tensor: 'last_hidden_state')
+      result = overridden.embed('explicit output tensor')
+      expect(result.rows).to eq(1)
+      expect(result.dim).to eq(GTE_EMBEDDING_DIM)
+    end
+
+    it 'fails fast when output_tensor override is missing from model outputs' do
+      expect do
+        GTE.new(GTE_E5_DIR, output_tensor: 'pooled_sentence_embeddings_debiased_normalized')
+      end.to raise_error(
+        GTE::Error,
+        /requested output tensor.*pooled_sentence_embeddings_debiased_normalized.*model outputs/i
+      )
+    end
+
+    it 'applies max_length truncation override' do
+      overridden = GTE.new(GTE_E5_DIR, max_length: 8)
+      result = overridden.embed('word ' * 1000)
+      expect(result.rows).to eq(1)
+      expect(result.dim).to eq(GTE_EMBEDDING_DIM)
+    end
+
+    it 'truncates like tokenizer max length: suffix differences past max_length are ignored' do
+      overridden = GTE.new(GTE_E5_DIR, max_length: 8)
+      prefix = ('sharedprefix ' * 64).strip
+      a = overridden.embed("query: #{prefix} alpha_suffix").row(0)
+      b = overridden.embed("query: #{prefix} beta_suffix totally different tail").row(0)
+      expect(cosine_similarity(a, b)).to be >= 0.99999
+      expect(max_abs_diff(a, b)).to be <= 1e-5
+    end
+
+    it 'rejects non-positive max_length' do
+      expect { GTE.new(GTE_E5_DIR, max_length: 0) }.to raise_error(ArgumentError, /max_length/)
+      expect { GTE.new(GTE_E5_DIR, max_length: -2) }.to raise_error(ArgumentError, /max_length/)
+    end
   end
 
   context 'CLIP', if: GTE_CLIP_AVAILABLE do

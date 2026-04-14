@@ -14,6 +14,13 @@ vector = model["query: hello world"]
 
 # Return raw (non-L2-normalized) vectors
 raw_model = GTE.new(ENV.fetch("GTE_MODEL_DIR"), normalize: false)
+
+# Override output tensor and tokenizer truncation length
+custom_model = GTE.new(
+  ENV.fetch("GTE_MODEL_DIR"),
+  output_tensor: "pooled_sentence_embeddings_debiased_normalized",
+  max_length: 512
+)
 ```
 
 For Puma or other thread pools, prefer process-local reuse:

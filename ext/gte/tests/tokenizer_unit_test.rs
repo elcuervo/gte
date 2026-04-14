@@ -40,5 +40,8 @@ fn test_e5_truncation_at_max_length() {
         .expect("tokenize should not error on long input");
 
     assert_eq!(tokenized.rows, 1);
-    assert_eq!(tokenized.cols, 16, "sequence length should be truncated to max_length");
+    assert_eq!(
+        tokenized.cols, 16,
+        "sequence length should be truncated to max_length"
+    );
 }

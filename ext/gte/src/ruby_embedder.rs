@@ -109,14 +109,33 @@ impl RbEmbedder {
         optimization_level: u8,
         model_name: String,
         normalize: bool,
+        output_tensor: String,
+        max_length: usize,
     ) -> Result<Self, Error> {
         let name = if model_name.is_empty() {
             None
         } else {
             Some(model_name.as_str())
         };
-        let embedder = Embedder::from_dir(&dir_path, num_threads, optimization_level, name)
-            .map_err(magnus::Error::from)?;
+        let output_override = if output_tensor.is_empty() {
+            None
+        } else {
+            Some(output_tensor.as_str())
+        };
+        let max_length_override = if max_length == 0 {
+            None
+        } else {
+            Some(max_length)
+        };
+        let embedder = Embedder::from_dir(
+            &dir_path,
+            num_threads,
+            optimization_level,
+            name,
+            output_override,
+            max_length_override,
+        )
+        .map_err(magnus::Error::from)?;
         Ok(RbEmbedder {
             inner: Arc::new(embedder),
             normalize,
@@ -221,7 +240,7 @@ impl RbTensor {
 pub fn register(ruby: &Ruby) -> Result<(), Error> {
     let module = ruby.define_module("GTE")?;
     let embedder_class = module.define_class("Embedder", ruby.class_object())?;
-    embedder_class.define_singleton_method("new", function!(RbEmbedder::rb_new, 5))?;
+    embedder_class.define_singleton_method("new", function!(RbEmbedder::rb_new, 7))?;
     embedder_class.define_method("embed", method!(RbEmbedder::rb_embed, 1))?;
     embedder_class.define_method("embed_one", method!(RbEmbedder::rb_embed_one, 1))?;
 

@@ -31,4 +31,16 @@ RSpec.describe 'GTE model cache', if: GTE_E5_AVAILABLE do
     raw = GTE.new(dir, normalize: false)
     expect(normalized.object_id).not_to eq(raw.object_id)
   end
+
+  it 'uses independent cache entries when output_tensor differs' do
+    a = GTE.new(dir)
+    b = GTE.new(dir, output_tensor: 'last_hidden_state')
+    expect(a.object_id).not_to eq(b.object_id)
+  end
+
+  it 'uses independent cache entries when max_length differs' do
+    a = GTE.new(dir, max_length: 64)
+    b = GTE.new(dir, max_length: 128)
+    expect(a.object_id).not_to eq(b.object_id)
+  end
 end

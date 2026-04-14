@@ -13,13 +13,23 @@ module GTE
   @model_cache = {}
 
   class Model
-    def initialize(dir, num_threads: 0, optimization_level: 3, model_name: nil, normalize: true)
+    def initialize(
+      dir,
+      num_threads: 0,
+      optimization_level: 3,
+      model_name: nil,
+      normalize: true,
+      output_tensor: nil,
+      max_length: nil
+    )
       @embedder = GTE::Embedder.new(
         dir,
         num_threads,
         optimization_level,
         model_name.to_s,
-        normalize
+        normalize,
+        output_tensor.to_s,
+        max_length || 0
       )
     end
 
@@ -38,13 +48,24 @@ module GTE
   end
 
   class << self
-    def new(dir, num_threads: 0, optimization: 3, model_name: nil, normalize: true)
+    def new(
+      dir,
+      num_threads: 0,
+      optimization: 3,
+      model_name: nil,
+      normalize: true,
+      output_tensor: nil,
+      max_length: nil
+    )
+      parsed_max_length = parse_max_length(max_length)
       key = [
         File.expand_path(dir),
         Integer(num_threads),
         Integer(optimization),
         model_name.to_s,
-        normalize ? true : false
+        normalize ? true : false,
+        output_tensor.to_s,
+        parsed_max_length || 0
       ].freeze
 
       @model_cache_mutex.synchronize { @model_cache[key] ||= build_model_for_key(key) }
@@ -52,13 +73,24 @@ module GTE
 
     private
 
+    def parse_max_length(value)
+      return nil if value.nil?
+
+      parsed = Integer(value)
+      raise ArgumentError, 'max_length must be greater than 0' if parsed <= 0
+
+      parsed
+    end
+
     def build_model_for_key(key)
       Model.new(
         key[0],
         num_threads: key[1],
         optimization_level: key[2],
         model_name: key[3].empty? ? nil : key[3],
-        normalize: key[4]
+        normalize: key[4],
+        output_tensor: key[5].empty? ? nil : key[5],
+        max_length: key[6].zero? ? nil : key[6]
       )
     end
   end

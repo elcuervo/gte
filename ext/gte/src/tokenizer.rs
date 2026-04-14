@@ -63,10 +63,17 @@ impl Tokenizer {
     }
 }
 
-fn build_tokenized_single(encoding: &tokenizers::Encoding, with_type_ids: bool) -> Result<Tokenized> {
+fn build_tokenized_single(
+    encoding: &tokenizers::Encoding,
+    with_type_ids: bool,
+) -> Result<Tokenized> {
     let cols = encoding.len();
 
-    let input_ids: Vec<i64> = encoding.get_ids().iter().map(|&value| i64::from(value)).collect();
+    let input_ids: Vec<i64> = encoding
+        .get_ids()
+        .iter()
+        .map(|&value| i64::from(value))
+        .collect();
     let attn_masks: Vec<i64> = encoding
         .get_attention_mask()
         .iter()
