@@ -141,11 +141,7 @@ fn tune_num_threads(
     let family = infer_model_family(with_attention_mask, with_type_ids, output_name);
 
     match family {
-        // Puma-like workloads typically run many concurrent single-item requests where
-        // one intra-op thread per request gives the best tail behavior.
-        ModelFamily::E5Like | ModelFamily::ClipLike => 1,
-        // Siglip2 text path benefits from a small intra-op pool under concurrency.
-        ModelFamily::SiglipLike => 3,
+        ModelFamily::E5Like | ModelFamily::ClipLike | ModelFamily::SiglipLike => 3,
         ModelFamily::Other => 0,
     }
 }
@@ -294,6 +290,13 @@ mod tests {
     #[test]
     fn tune_num_threads_respects_requested_value() {
         assert_eq!(tune_num_threads(7, true, true, "last_hidden_state"), 7);
+    }
+
+    #[test]
+    fn tune_num_threads_uses_three_threads_for_known_families() {
+        assert_eq!(tune_num_threads(0, true, true, "last_hidden_state"), 3);
+        assert_eq!(tune_num_threads(0, true, false, "last_hidden_state"), 3);
+        assert_eq!(tune_num_threads(0, false, false, "text_embeds"), 3);
     }
 
     #[test]

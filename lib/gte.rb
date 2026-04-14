@@ -18,11 +18,9 @@ module GTE
     end
 
     def embed(texts)
-      if texts.is_a?(String)
-        @embedder.embed_one(texts)
-      else
-        @embedder.embed(Array(texts))
-      end
+      return @embedder.embed_one(texts) if texts.is_a?(String)
+
+      @embedder.embed(Array(texts))
     end
 
     def [](input)
@@ -33,10 +31,10 @@ module GTE
     end
   end
 
-  def self.new(dir, threads: 0, optimization: 3, model_name: nil)
+  def self.new(dir, num_threads: 0, optimization: 3, model_name: nil)
     key = [
       File.expand_path(dir),
-      Integer(threads),
+      Integer(num_threads),
       Integer(optimization),
       model_name.to_s
     ].freeze
@@ -50,6 +48,4 @@ module GTE
       )
     end
   end
-
-  def self.fetch(*) = new(*)
 end
