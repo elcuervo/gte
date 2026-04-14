@@ -13,8 +13,14 @@ module GTE
   @model_cache = {}
 
   class Model
-    def initialize(dir, num_threads: 0, optimization_level: 3, model_name: nil)
-      @embedder = GTE::Embedder.new(dir, num_threads, optimization_level, model_name.to_s)
+    def initialize(dir, num_threads: 0, optimization_level: 3, model_name: nil, normalize: true)
+      @embedder = GTE::Embedder.new(
+        dir,
+        num_threads,
+        optimization_level,
+        model_name.to_s,
+        normalize
+      )
     end
 
     def embed(texts)
@@ -31,20 +37,28 @@ module GTE
     end
   end
 
-  def self.new(dir, num_threads: 0, optimization: 3, model_name: nil)
-    key = [
-      File.expand_path(dir),
-      Integer(num_threads),
-      Integer(optimization),
-      model_name.to_s
-    ].freeze
+  class << self
+    def new(dir, num_threads: 0, optimization: 3, model_name: nil, normalize: true)
+      key = [
+        File.expand_path(dir),
+        Integer(num_threads),
+        Integer(optimization),
+        model_name.to_s,
+        normalize ? true : false
+      ].freeze
 
-    @model_cache_mutex.synchronize do
-      @model_cache[key] ||= Model.new(
+      @model_cache_mutex.synchronize { @model_cache[key] ||= build_model_for_key(key) }
+    end
+
+    private
+
+    def build_model_for_key(key)
+      Model.new(
         key[0],
         num_threads: key[1],
         optimization_level: key[2],
-        model_name: key[3].empty? ? nil : key[3]
+        model_name: key[3].empty? ? nil : key[3],
+        normalize: key[4]
       )
     end
   end

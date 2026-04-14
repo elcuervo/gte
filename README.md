@@ -11,6 +11,9 @@ require "gte"
 
 model = GTE.new(ENV.fetch("GTE_MODEL_DIR"))
 vector = model["query: hello world"]
+
+# Return raw (non-L2-normalized) vectors
+raw_model = GTE.new(ENV.fetch("GTE_MODEL_DIR"), normalize: false)
 ```
 
 For Puma or other thread pools, prefer process-local reuse:

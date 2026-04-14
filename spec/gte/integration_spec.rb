@@ -92,6 +92,18 @@ RSpec.describe 'Integration' do
       expect(cosine).to be >= SINGLE_BATCH_MIN_COSINE
       expect(max_abs).to be <= SINGLE_BATCH_MAX_ABS_DIFF
     end
+
+    it 'supports disabling normalization via initializer' do
+      normalized = GTE.new(GTE_E5_DIR, normalize: true).embed('normalization flag test').row(0)
+      raw = GTE.new(GTE_E5_DIR, normalize: false).embed('normalization flag test').row(0)
+
+      normalized_norm = Math.sqrt(normalized.sum { |v| v * v })
+      raw_norm = Math.sqrt(raw.sum { |v| v * v })
+
+      expect(normalized_norm).to be_within(1e-3).of(1.0)
+      expect(max_abs_diff(normalized, raw)).to be > 1e-6
+      expect((raw_norm - 1.0).abs).to be > 1e-4
+    end
   end
 
   context 'CLIP', if: GTE_CLIP_AVAILABLE do

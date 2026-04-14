@@ -10,6 +10,7 @@ use std::sync::Arc;
 #[wrap(class = "GTE::Embedder", free_immediately, size)]
 pub struct RbEmbedder {
     inner: Arc<Embedder>,
+    normalize: bool,
 }
 
 #[wrap(class = "GTE::Tensor", free_immediately, size)]
@@ -22,6 +23,7 @@ pub struct RbTensor {
 struct InferArgs {
     embedder: *const Embedder,
     texts: *const Vec<String>,
+    normalize: bool,
     result: Option<Result<ndarray::Array2<f32>, GteError>>,
 }
 
@@ -37,11 +39,16 @@ fn panic_payload_to_string(payload: Box<dyn std::any::Any + Send>) -> String {
     }
 }
 
-fn infer_without_gvl(embedder: &Arc<Embedder>, texts: Vec<String>) -> Result<ndarray::Array2<f32>, Error> {
+fn infer_without_gvl(
+    embedder: &Arc<Embedder>,
+    normalize: bool,
+    texts: Vec<String>,
+) -> Result<ndarray::Array2<f32>, Error> {
     let embeddings = unsafe {
         let mut args = InferArgs {
             embedder: Arc::as_ptr(embedder),
             texts: &texts as *const Vec<String>,
+            normalize,
             result: None,
         };
         rb_sys::rb_thread_call_without_gvl(
@@ -65,7 +72,11 @@ unsafe extern "C" fn run_without_gvl(ptr: *mut c_void) -> *mut c_void {
     let run_result = catch_unwind(AssertUnwindSafe(|| {
         let tokenized = (*args.embedder).tokenize(&*args.texts)?;
         let embeddings = (*args.embedder).run(&tokenized)?;
-        Ok(normalize_l2(embeddings))
+        if args.normalize {
+            Ok(normalize_l2(embeddings))
+        } else {
+            Ok(embeddings)
+        }
     }));
     args.result = Some(match run_result {
         Ok(result) => result,
@@ -97,6 +108,7 @@ impl RbEmbedder {
         num_threads: usize,
         optimization_level: u8,
         model_name: String,
+        normalize: bool,
     ) -> Result<Self, Error> {
         let name = if model_name.is_empty() {
             None
@@ -107,17 +119,18 @@ impl RbEmbedder {
             .map_err(magnus::Error::from)?;
         Ok(RbEmbedder {
             inner: Arc::new(embedder),
+            normalize,
         })
     }
 
     pub fn rb_embed(_ruby: &Ruby, rb_self: &Self, texts: RArray) -> Result<RbTensor, Error> {
         let texts: Vec<String> = texts.to_vec()?;
-        let embeddings = infer_without_gvl(&rb_self.inner, texts)?;
+        let embeddings = infer_without_gvl(&rb_self.inner, rb_self.normalize, texts)?;
         tensor_from_array(embeddings)
     }
 
     pub fn rb_embed_one(_ruby: &Ruby, rb_self: &Self, text: String) -> Result<RbTensor, Error> {
-        let embeddings = infer_without_gvl(&rb_self.inner, vec![text])?;
+        let embeddings = infer_without_gvl(&rb_self.inner, rb_self.normalize, vec![text])?;
         tensor_from_array(embeddings)
     }
 }
@@ -208,7 +221,7 @@ impl RbTensor {
 pub fn register(ruby: &Ruby) -> Result<(), Error> {
     let module = ruby.define_module("GTE")?;
     let embedder_class = module.define_class("Embedder", ruby.class_object())?;
-    embedder_class.define_singleton_method("new", function!(RbEmbedder::rb_new, 4))?;
+    embedder_class.define_singleton_method("new", function!(RbEmbedder::rb_new, 5))?;
     embedder_class.define_method("embed", method!(RbEmbedder::rb_embed, 1))?;
     embedder_class.define_method("embed_one", method!(RbEmbedder::rb_embed_one, 1))?;
 

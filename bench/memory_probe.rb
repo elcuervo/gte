@@ -64,12 +64,12 @@ puts
 
 report('boot')
 
-gte_a = GTE.fetch(options[:model_dir], num_threads: 0)
+gte_a = GTE.new(options[:model_dir], num_threads: 0)
 report('gte fetch #1')
 gte_a.embed('query: warmup')
 report('gte warmup')
 
-gte_b = GTE.fetch(options[:model_dir], num_threads: 0)
+gte_b = GTE.new(options[:model_dir], num_threads: 0)
 report('gte fetch #2 (same key)')
 puts "same_instance=#{gte_a.equal?(gte_b)}"
 

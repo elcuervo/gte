@@ -11,12 +11,6 @@ RSpec.describe 'GTE model cache', if: GTE_E5_AVAILABLE do
     expect(a.object_id).to eq(b.object_id)
   end
 
-  it 'keeps GTE.fetch as alias of GTE.new caching behavior' do
-    a = GTE.new(dir)
-    b = GTE.fetch(dir)
-    expect(a.object_id).to eq(b.object_id)
-  end
-
   it 'returns one shared instance across concurrent constructor calls' do
     ids = Array.new(16)
     threads = 16.times.map do |idx|
@@ -30,5 +24,11 @@ RSpec.describe 'GTE model cache', if: GTE_E5_AVAILABLE do
     a = GTE.new(dir, num_threads: 1)
     b = GTE.new(dir, num_threads: 2)
     expect(a.object_id).not_to eq(b.object_id)
+  end
+
+  it 'uses independent cache entries when normalize differs' do
+    normalized = GTE.new(dir, normalize: true)
+    raw = GTE.new(dir, normalize: false)
+    expect(normalized.object_id).not_to eq(raw.object_id)
   end
 end
