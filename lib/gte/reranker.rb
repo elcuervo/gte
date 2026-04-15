@@ -3,10 +3,21 @@
 module GTE
   class Reranker
     class << self
-      alias native_new new unless method_defined?(:native_new)
-
       def config(model_dir)
-        cfg = Config::Reranker.new(
+        cfg = default_config(model_dir)
+
+        if block_given?
+          yielded = yield(cfg)
+          cfg = yielded if yielded.is_a?(Config::Reranker)
+        end
+
+        build(cfg)
+      end
+
+      private
+
+      def default_config(model_dir)
+        Config::Reranker.new(
           model_dir: File.expand_path(model_dir),
           threads: 3,
           optimization_level: 3,
@@ -15,10 +26,10 @@ module GTE
           output_tensor: nil,
           max_length: nil
         )
+      end
 
-        cfg = yield(cfg) if block_given?
-
-        native_new(
+      def build(cfg)
+        new(
           cfg.model_dir,
           cfg.threads,
           cfg.optimization_level,
