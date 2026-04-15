@@ -138,7 +138,6 @@ RSpec.describe 'Integration' do
       expect(cosine_similarity(a, b)).to be >= 0.99999
       expect(max_abs_diff(a, b)).to be <= 1e-5
     end
-
   end
 
   context 'CLIP', if: GTE_CLIP_AVAILABLE do

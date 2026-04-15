@@ -334,9 +334,11 @@ begin
     puts "\n#{label} (#{key})"
     puts "  dir: #{Pathname.new(model_dir).relative_path_from(Pathname.new(ROOT))}"
 
-    gte_model = GTE.config(model_dir) do |config|
-      config.threads = options[:gte_threads] unless options[:gte_threads].nil?
-    end
+    gte_model = if options[:gte_threads].nil?
+                  GTE.config(model_dir)
+                else
+                  GTE.config(model_dir) { |config| config.with(threads: options[:gte_threads]) }
+                end
     pure_model = PureRubyTextEmbedding::TextEncoder.new(model_dir: model_dir)
 
     probe_texts = cfg.fetch('probe_texts')

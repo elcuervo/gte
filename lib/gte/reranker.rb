@@ -15,7 +15,9 @@ module GTE
           output_tensor: nil,
           max_length: nil
         )
+
         cfg = yield(cfg) if block_given?
+
         native_new(
           cfg.model_dir,
           cfg.threads,
@@ -31,8 +33,11 @@ module GTE
     def rerank(query:, candidates:)
       rows = Array(candidates).map(&:to_s)
       scores = score(query.to_s, rows)
-      rows.each_with_index.map { |text, idx| { index: idx, score: scores[idx], text: text } }
-                          .sort_by { |row| -row[:score] }
+
+      rows
+        .each_with_index
+        .map { |text, idx| { index: idx, score: scores[idx], text: text } }
+        .sort_by { |row| -row[:score] }
     end
   end
 end
