@@ -268,8 +268,8 @@ if options[:run_samples] <= 0
   exit 1
 end
 
-if options[:gte_threads] && options[:gte_threads] <= 0
-  warn('gte-threads must be > 0')
+if options[:gte_threads] && options[:gte_threads] < 0
+  warn('gte-threads must be >= 0')
   exit 1
 end
 
@@ -284,7 +284,14 @@ puts '=' * 72
 puts "iterations/model: #{options[:iterations]}"
 puts "concurrency: #{options[:concurrency]}"
 puts "sample runs: #{options[:run_samples]} (median aggregation)"
-puts "gte threads: #{options[:gte_threads] || 'auto'}"
+threads_label = if options[:gte_threads].nil?
+                  'default (3)'
+                elsif options[:gte_threads].zero?
+                  'full-throttle (0)'
+                else
+                  options[:gte_threads].to_s
+                end
+puts "gte threads: #{threads_label}"
 puts "execution providers: #{options[:exec_providers] || ENV['GTE_EXECUTION_PROVIDERS'] || 'xnnpack (runtime default)'}"
 puts "thresholds: max_abs<=#{options[:max_abs]} min_cos>=#{options[:min_cos]} response_p95_ratio>=#{options[:min_p95_ratio]}x"
 
@@ -327,7 +334,11 @@ begin
     puts "\n#{label} (#{key})"
     puts "  dir: #{Pathname.new(model_dir).relative_path_from(Pathname.new(ROOT))}"
 
-    gte_model = GTE.new(model_dir, num_threads: options[:gte_threads] || 0)
+    gte_model = if options[:gte_threads].nil?
+                  GTE.new(model_dir)
+                else
+                  GTE.new(model_dir, num_threads: options[:gte_threads])
+                end
     pure_model = PureRubyTextEmbedding::TextEncoder.new(model_dir: model_dir)
 
     probe_texts = cfg.fetch('probe_texts')

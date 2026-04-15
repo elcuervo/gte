@@ -15,6 +15,11 @@ vector = model["query: hello world"]
 # Return raw (non-L2-normalized) vectors
 raw_model = GTE.new(ENV.fetch("GTE_MODEL_DIR"), normalize: false)
 
+# Threading:
+# - default is 3 threads
+# - num_threads: 0 lets ONNX Runtime use full-throttle threading
+fast_model = GTE.new(ENV.fetch("GTE_MODEL_DIR"), num_threads: 0)
+
 # Override output tensor and tokenizer truncation length
 custom_model = GTE.new(
   ENV.fetch("GTE_MODEL_DIR"),

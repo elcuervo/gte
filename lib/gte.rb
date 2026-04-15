@@ -15,7 +15,7 @@ module GTE
   class Model
     def initialize(
       dir,
-      num_threads: 0,
+      num_threads: 3,
       optimization_level: 3,
       model_name: nil,
       normalize: true,
@@ -50,37 +50,27 @@ module GTE
   class << self
     def new(
       dir,
-      num_threads: 0,
+      num_threads: 3,
       optimization: 3,
       model_name: nil,
       normalize: true,
       output_tensor: nil,
       max_length: nil
     )
-      parsed_max_length = parse_max_length(max_length)
       key = [
         File.expand_path(dir),
-        Integer(num_threads),
+        num_threads,
         Integer(optimization),
         model_name.to_s,
         normalize ? true : false,
         output_tensor.to_s,
-        parsed_max_length || 0
+        max_length || 0
       ].freeze
 
       @model_cache_mutex.synchronize { @model_cache[key] ||= build_model_for_key(key) }
     end
 
     private
-
-    def parse_max_length(value)
-      return nil if value.nil?
-
-      parsed = Integer(value)
-      raise ArgumentError, 'max_length must be greater than 0' if parsed <= 0
-
-      parsed
-    end
 
     def build_model_for_key(key)
       Model.new(

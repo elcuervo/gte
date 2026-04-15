@@ -64,27 +64,27 @@ puts
 
 report('boot')
 
-gte_a = GTE.new(options[:model_dir], num_threads: 0)
+gte_a = GTE.new(options[:model_dir])
 report('gte fetch #1')
 gte_a.embed('query: warmup')
 report('gte warmup')
 
-gte_b = GTE.new(options[:model_dir], num_threads: 0)
+gte_b = GTE.new(options[:model_dir])
 report('gte fetch #2 (same key)')
 puts "same_instance=#{gte_a.equal?(gte_b)}"
 
 texts = Array.new(options[:burst]) { |i| "query: memory probe #{i}" }
 burst('gte thread burst', workers: options[:workers], requests: texts) { |text| gte_a.embed(text) }
 
-gte_new = GTE.new(options[:model_dir], num_threads: 0)
+gte_new = GTE.new(options[:model_dir])
 report('gte new #2 (same key)')
 puts "new_reuses_instance=#{gte_new.equal?(gte_a)}"
 
-gte_new_threads = GTE.new(options[:model_dir], num_threads: 1)
+gte_full_throttle = GTE.new(options[:model_dir], num_threads: 0)
 report('gte new (different key)')
-puts "different_key_distinct=#{!gte_new_threads.equal?(gte_a)}"
+puts "different_key_distinct=#{!gte_full_throttle.equal?(gte_a)}"
 burst('gte two-key burst', workers: options[:workers], requests: texts) do |text|
-  (text.hash.even? ? gte_a : gte_new_threads).embed(text)
+  (text.hash.even? ? gte_a : gte_full_throttle).embed(text)
 end
 
 if options[:compare_pure]

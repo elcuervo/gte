@@ -7,14 +7,6 @@ use ndarray::Array2;
 use ort::session::Session;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ModelFamily {
-    E5Like,
-    SiglipLike,
-    ClipLike,
-    Other,
-}
-
 pub struct Embedder {
     tokenizer: Tokenizer,
     session: Session,
@@ -68,23 +60,21 @@ impl Embedder {
         } else {
             read_max_length(dir)
         };
-        let probe_num_threads = if num_threads == 0 { 1 } else { num_threads };
-        let temp_config = ModelConfig {
+        let session_config = ModelConfig {
             max_length,
             output_tensor: String::new(),
             mode: ExtractorMode::Raw,
             with_type_ids: false,
             with_attention_mask: true,
-            num_threads: probe_num_threads,
+            num_threads,
             optimization_level,
         };
-        let mut session = build_session(&model_path, &temp_config)?;
+        let session = build_session(&model_path, &session_config)?;
 
         validate_supported_inputs(&session)?;
         let with_type_ids = session.inputs.iter().any(|i| i.name == "token_type_ids");
         let with_attention_mask = session.inputs.iter().any(|i| i.name == "attention_mask");
         let output_tensor = select_output_tensor(&session, output_tensor_override)?;
-        let output_base = output_basename(output_tensor.as_str()).to_string();
         let mode = infer_extraction_mode(&session, output_tensor.as_str())?;
         if matches!(mode, ExtractorMode::MeanPool) && !with_attention_mask {
             return Err(GteError::Inference(
@@ -92,28 +82,15 @@ impl Embedder {
             ));
         }
 
-        let tuned_num_threads = tune_num_threads(
-            num_threads,
-            with_attention_mask,
-            with_type_ids,
-            output_base.as_str(),
-        );
-
         let config = ModelConfig {
             max_length,
             output_tensor,
             mode,
             with_type_ids,
             with_attention_mask,
-            num_threads: tuned_num_threads,
+            num_threads,
             optimization_level,
         };
-
-        if tuned_num_threads != probe_num_threads {
-            // Release probe session before rebuilding to minimize transient peak RSS.
-            drop(session);
-            session = build_session(&model_path, &config)?;
-        }
 
         let tokenizer = Tokenizer::new(&tokenizer_path, config.max_length, config.with_type_ids)?;
 
@@ -136,44 +113,6 @@ impl Embedder {
     pub fn run(&self, tokenized: &Tokenized) -> crate::error::Result<Array2<f32>> {
         run_session(&self.session, tokenized, &self.config)
     }
-}
-
-fn tune_num_threads(
-    requested: usize,
-    with_attention_mask: bool,
-    with_type_ids: bool,
-    output_name: &str,
-) -> usize {
-    if requested > 0 {
-        return requested;
-    }
-
-    let family = infer_model_family(with_attention_mask, with_type_ids, output_name);
-
-    match family {
-        ModelFamily::E5Like | ModelFamily::ClipLike | ModelFamily::SiglipLike => 1,
-        ModelFamily::Other => 0,
-    }
-}
-
-fn infer_model_family(
-    with_attention_mask: bool,
-    with_type_ids: bool,
-    output_name: &str,
-) -> ModelFamily {
-    if output_name == "pooler_output" {
-        return ModelFamily::SiglipLike;
-    }
-    if output_name == "last_hidden_state" && with_attention_mask && with_type_ids {
-        return ModelFamily::E5Like;
-    }
-    if output_name == "last_hidden_state" && with_attention_mask && !with_type_ids {
-        return ModelFamily::SiglipLike;
-    }
-    if output_name == "text_embeds" && !with_attention_mask {
-        return ModelFamily::ClipLike;
-    }
-    ModelFamily::Other
 }
 
 fn resolve_named_model(dir: &Path, name: &str) -> Result<PathBuf> {
@@ -263,8 +202,8 @@ fn select_output_tensor(session: &Session, requested: Option<&str>) -> Result<St
     }
 
     const PREFERRED: [&str; 4] = [
-        "text_embeds",
         "pooler_output",
+        "text_embeds",
         "sentence_embedding",
         "last_hidden_state",
     ];
@@ -299,52 +238,6 @@ fn read_max_length(dir: &Path) -> usize {
         Some((n as usize).min(8192))
     })()
     .unwrap_or(512)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{infer_model_family, tune_num_threads, ModelFamily};
-
-    #[test]
-    fn infer_model_family_recognizes_known_signatures() {
-        assert_eq!(
-            infer_model_family(true, true, "last_hidden_state"),
-            ModelFamily::E5Like
-        );
-        assert_eq!(
-            infer_model_family(true, false, "last_hidden_state"),
-            ModelFamily::SiglipLike
-        );
-        assert_eq!(
-            infer_model_family(false, false, "text_embeds"),
-            ModelFamily::ClipLike
-        );
-        assert_eq!(
-            infer_model_family(false, false, "pooler_output"),
-            ModelFamily::SiglipLike
-        );
-        assert_eq!(
-            infer_model_family(true, false, "sentence_embedding"),
-            ModelFamily::Other
-        );
-    }
-
-    #[test]
-    fn tune_num_threads_respects_requested_value() {
-        assert_eq!(tune_num_threads(7, true, true, "last_hidden_state"), 7);
-    }
-
-    #[test]
-    fn tune_num_threads_uses_single_thread_for_known_families() {
-        assert_eq!(tune_num_threads(0, true, true, "last_hidden_state"), 1);
-        assert_eq!(tune_num_threads(0, true, false, "last_hidden_state"), 1);
-        assert_eq!(tune_num_threads(0, false, false, "text_embeds"), 1);
-    }
-
-    #[test]
-    fn tune_num_threads_returns_ort_default_for_other_family() {
-        assert_eq!(tune_num_threads(0, true, false, "sentence_embedding"), 0);
-    }
 }
 
 fn output_basename(name: &str) -> &str {
