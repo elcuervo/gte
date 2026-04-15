@@ -36,7 +36,7 @@ module GTE
     private
 
     def cache_key(cfg)
-      SecureRandom.hex(cfg.to_h)
+      cfg.to_h
     end
   end
 end

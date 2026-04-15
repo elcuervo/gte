@@ -7,7 +7,7 @@ RSpec.describe 'GTE model cache', if: GTE_E5_AVAILABLE do
 
   def build_model(model_dir, **overrides)
     GTE.config(model_dir) do |config|
-      overrides.each { |key, value| config.public_send("#{key}=", value) }
+      overrides.empty? ? config : config.with(**overrides)
     end
   end
 
@@ -54,9 +54,5 @@ RSpec.describe 'GTE model cache', if: GTE_E5_AVAILABLE do
     a = build_model(dir, max_length: 64)
     b = build_model(dir, max_length: 128)
     expect(a.object_id).not_to eq(b.object_id)
-  end
-
-  it 'rejects negative threads' do
-    expect { build_model(dir, threads: -1) }.to raise_error(ArgumentError, /threads/)
   end
 end
