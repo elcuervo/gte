@@ -9,39 +9,105 @@ Inspired by https://github.com/fbilhaut/gte-rs
 ```ruby
 require "gte"
 
-model = GTE.new(ENV.fetch("GTE_MODEL_DIR"))
-vector = model["query: hello world"]
+model = GTE.config(ENV.fetch("GTE_MODEL_DIR"))
 
-# Return raw (non-L2-normalized) vectors
-raw_model = GTE.new(ENV.fetch("GTE_MODEL_DIR"), normalize: false)
+# String input => GTE::Tensor (1 row)
+tensor = model.embed("query: hello world")
+vector = tensor.row(0)
 
-# Threading:
-# - default is 3 threads
-# - num_threads: 0 lets ONNX Runtime use full-throttle threading
-fast_model = GTE.new(ENV.fetch("GTE_MODEL_DIR"), num_threads: 0)
+# [] with string => Array<Float> (single vector)
+single = model["query: nearest coffee shop"]
 
-# Override output tensor and tokenizer truncation length
-custom_model = GTE.new(
-  ENV.fetch("GTE_MODEL_DIR"),
-  output_tensor: "pooled_sentence_embeddings_debiased_normalized",
-  max_length: 512
-)
-
-# Reranking (text pairs -> scores)
-reranker = GTE.reranker(ENV.fetch("GTE_RERANK_DIR"), sigmoid: true)
-ranked = reranker.rerank(
-  query: "how to train a neural network?",
-  candidates: [
-    "Backpropagation and gradient descent are core techniques.",
-    "This recipe uses flour and eggs."
-  ]
-)
+# [] with array => GTE::Tensor (batch)
+batch = model[["query: hello", "query: world"]]
 ```
 
-For Puma or other thread pools, prefer process-local reuse:
+## Embedding Config (`GTE.config`)
+
+`GTE.config(model_dir)` builds (and caches) a `GTE::Model`.
 
 ```ruby
-MODEL = GTE.new(ENV.fetch("GTE_MODEL_DIR"))
+default_model = GTE.config(ENV.fetch("GTE_MODEL_DIR"))
+
+raw_model = GTE.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
+  config.with(normalize: false)
+end
+
+full_throttle = GTE.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
+  config.with(threads: 0)
+end
+
+custom = GTE.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
+  config.with(
+    output_tensor: "last_hidden_state",
+    max_length: 256,
+    optimization_level: 3
+  )
+end
+```
+
+Config fields and defaults:
+
+- `model_dir`: absolute path to model directory
+- `threads`: `3` (set `0` for ONNX Runtime full-throttle threadpool)
+- `optimization_level`: `3`
+- `model_name`: `nil`
+- `normalize`: `true` (L2 normalization at Ruby-facing API)
+- `output_tensor`: `nil` (auto-select output tensor)
+- `max_length`: `nil` (uses tokenizer/model defaults)
+
+Notes:
+
+- Return a `Config::Text` from the block (for example, `config.with(...)`).
+- Model instances are cached by full config key; different config values create different cached instances.
+
+## Reranker
+
+Use `GTE::Reranker.config(model_dir)` for cross-encoder reranking.
+
+```ruby
+reranker = GTE::Reranker.config(ENV.fetch("GTE_RERANK_DIR")) do |config|
+  config.with(sigmoid: true, threads: 0)
+end
+
+query = "how to train a neural network?"
+candidates = [
+  "Backpropagation and gradient descent are core techniques.",
+  "This recipe uses flour and eggs."
+]
+
+# Raw scores aligned with input order
+scores = reranker.score(query, candidates)
+# => [0.93, 0.07]
+
+# Ranked output sorted by score desc
+ranked = reranker.rerank(query: query, candidates: candidates)
+# => [
+#      { index: 0, score: 0.93, text: "Backpropagation and gradient descent are core techniques." },
+#      { index: 1, score: 0.07, text: "This recipe uses flour and eggs." }
+#    ]
+```
+
+Reranker config fields and defaults:
+
+- `model_dir`: absolute path to model directory
+- `threads`: `3`
+- `optimization_level`: `3`
+- `model_name`: `nil`
+- `sigmoid`: `false` (set `true` if you want bounded [0,1] style scores)
+- `output_tensor`: `nil`
+- `max_length`: `nil`
+
+## Runtime + Result Examples
+
+Process-local reuse (recommended for Puma/web servers):
+
+```ruby
+EMBEDDER = GTE.config(ENV.fetch("GTE_MODEL_DIR"))
+
+def embed_query(text)
+  EMBEDDER[text] # Array<Float>
+end
 ```
 
 ## Model Directory
@@ -53,14 +119,28 @@ A model directory must include `tokenizer.json` and one ONNX model, resolved in 
 3. `onnx/model.onnx`
 4. `model.onnx`
 
-## Development
+Input policy is text-only. Graphs requiring unsupported multimodal inputs (such as `pixel_values`) are intentionally rejected.
 
-Run commands inside `nix develop`.
+## Execution Providers
+
+Default execution provider is `xnnpack` on all platforms (including macOS arm64).
+
+To opt in to CoreML explicitly:
 
 ```bash
-bundle exec rake compile
-cargo test --manifest-path ext/gte/Cargo.toml --no-default-features
-bundle exec rspec
+export GTE_EXECUTION_PROVIDERS=xnnpack,coreml
+```
+
+## Development
+
+Run commands inside `nix develop` via Make targets:
+
+```bash
+make setup
+make compile
+make test
+make lint
+make ci
 ```
 
 ## Benchmark
@@ -68,14 +148,14 @@ bundle exec rspec
 The repo includes two benchmark paths:
 
 ```bash
-bundle exec rake bench:pure_compare
-bundle exec rake bench:puma_compare
-bundle exec rake bench:matrix_sweep
-bundle exec ruby bench/memory_probe.rb --compare-pure
+make bench
+nix develop -c bundle exec rake bench:pure_compare
+nix develop -c bundle exec rake bench:matrix_sweep
+nix develop -c bundle exec ruby bench/memory_probe.rb --compare-pure
 ```
 
 For release tracking and regression detection, record a run entry in `RUNS.md`:
 
 ```bash
-bundle exec rake bench:record_run
+make bench-record
 ```
