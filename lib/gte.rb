@@ -30,7 +30,9 @@ module GTE
 
       cfg = yield(cfg) if block_given?
 
-      @model_cache_mutex.synchronize { @model_cache[cache_key(cfg)] ||= Model.new(cfg) }
+      @model_cache_mutex.synchronize do
+        @model_cache[cache_key(cfg)] ||= Model.new(cfg)
+      end
     end
 
     private
