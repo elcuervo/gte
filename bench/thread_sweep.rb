@@ -95,7 +95,7 @@ MODELS.each do |key, cfg|
 
   best = nil
   options[:candidates].each do |threads|
-    model = GTE.new(File.expand_path(dir, ROOT), num_threads: threads)
+    model = GTE.config(File.expand_path(dir, ROOT)) { |config| config.threads = threads }
     (options[:concurrency] * 2).times { |i| model.embed(format(cfg.fetch('request_template'), idx: "warmup-#{i}")) }
 
     stats = run_once(model, requests, options[:concurrency])

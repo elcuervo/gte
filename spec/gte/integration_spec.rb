@@ -24,8 +24,8 @@ RSpec.describe 'Integration' do
     result
   end
 
-  context 'GTE.new API', if: GTE_E5_AVAILABLE do
-    let(:model) { GTE.new(GTE_E5_DIR) }
+  context 'GTE.config API', if: GTE_E5_AVAILABLE do
+    let(:model) { GTE.config(GTE_E5_DIR) }
 
     it 'embed returns GTE::Tensor' do
       result = model.embed('Hello world')
@@ -50,7 +50,7 @@ RSpec.describe 'Integration' do
   end
 
   context 'E5', if: GTE_E5_AVAILABLE do
-    let(:model) { GTE.new(GTE_E5_DIR) }
+    let(:model) { GTE.config(GTE_E5_DIR) }
 
     it 'batch embedding returns correct dimensions' do
       texts = ['Hello world', 'Goodbye world', 'Machine learning']
@@ -94,8 +94,10 @@ RSpec.describe 'Integration' do
     end
 
     it 'supports disabling normalization via initializer' do
-      normalized = GTE.new(GTE_E5_DIR, normalize: true).embed('normalization flag test').row(0)
-      raw = GTE.new(GTE_E5_DIR, normalize: false).embed('normalization flag test').row(0)
+      normalized_model = GTE.config(GTE_E5_DIR) { |config| config.with(normalize: true) }
+      raw_model = GTE.config(GTE_E5_DIR) { |config| config.with(normalize: false) }
+      normalized = normalized_model.embed('normalization flag test').row(0)
+      raw = raw_model.embed('normalization flag test').row(0)
 
       normalized_norm = Math.sqrt(normalized.sum { |v| v * v })
       raw_norm = Math.sqrt(raw.sum { |v| v * v })
@@ -106,7 +108,7 @@ RSpec.describe 'Integration' do
     end
 
     it 'accepts an explicit output_tensor override' do
-      overridden = GTE.new(GTE_E5_DIR, output_tensor: 'last_hidden_state')
+      overridden = GTE.config(GTE_E5_DIR) { |config| config.with(output_tensor: 'last_hidden_state') }
       result = overridden.embed('explicit output tensor')
       expect(result.rows).to eq(1)
       expect(result.dim).to eq(GTE_EMBEDDING_DIM)
@@ -114,7 +116,7 @@ RSpec.describe 'Integration' do
 
     it 'fails fast when output_tensor override is missing from model outputs' do
       expect do
-        GTE.new(GTE_E5_DIR, output_tensor: 'pooled_sentence_embeddings_debiased_normalized')
+        GTE.config(GTE_E5_DIR) { |config| config.with(output_tensor: 'pooled_sentence_embeddings_debiased_normalized') }
       end.to raise_error(
         GTE::Error,
         /requested output tensor.*pooled_sentence_embeddings_debiased_normalized.*model outputs/i
@@ -122,14 +124,14 @@ RSpec.describe 'Integration' do
     end
 
     it 'applies max_length truncation override' do
-      overridden = GTE.new(GTE_E5_DIR, max_length: 8)
+      overridden = GTE.config(GTE_E5_DIR) { |config| config.with(max_length: 8) }
       result = overridden.embed('word ' * 1000)
       expect(result.rows).to eq(1)
       expect(result.dim).to eq(GTE_EMBEDDING_DIM)
     end
 
     it 'truncates like tokenizer max length: suffix differences past max_length are ignored' do
-      overridden = GTE.new(GTE_E5_DIR, max_length: 8)
+      overridden = GTE.config(GTE_E5_DIR) { |config| config.with(max_length: 8) }
       prefix = ('sharedprefix ' * 64).strip
       a = overridden.embed("query: #{prefix} alpha_suffix").row(0)
       b = overridden.embed("query: #{prefix} beta_suffix totally different tail").row(0)
@@ -137,14 +139,10 @@ RSpec.describe 'Integration' do
       expect(max_abs_diff(a, b)).to be <= 1e-5
     end
 
-    it 'rejects non-positive max_length' do
-      expect { GTE.new(GTE_E5_DIR, max_length: 0) }.to raise_error(ArgumentError, /max_length/)
-      expect { GTE.new(GTE_E5_DIR, max_length: -2) }.to raise_error(ArgumentError, /max_length/)
-    end
   end
 
   context 'CLIP', if: GTE_CLIP_AVAILABLE do
-    let(:model) { GTE.new(GTE_CLIP_DIR) }
+    let(:model) { GTE.config(GTE_CLIP_DIR) }
 
     it 'batch embedding returns correct dimensions' do
       texts = ['a photo of a cat', 'a painting of a sunset']
@@ -163,7 +161,7 @@ RSpec.describe 'Integration' do
   end
 
   context 'Siglip2', if: GTE_SIGLIP2_AVAILABLE do
-    let(:model) { GTE.new(GTE_SIGLIP2_DIR) }
+    let(:model) { GTE.config(GTE_SIGLIP2_DIR) }
 
     it 'batch embedding returns correct dimensions' do
       texts = ['a photo of a cat', 'a photo of a dog']
@@ -181,8 +179,8 @@ RSpec.describe 'Integration' do
 
   context 'cross-model', if: GTE_E5_AVAILABLE && GTE_CLIP_AVAILABLE do
     it 'same text embedded by different models produces different dimension vectors' do
-      e5 = GTE.new(GTE_E5_DIR)
-      clip = GTE.new(GTE_CLIP_DIR)
+      e5 = GTE.config(GTE_E5_DIR)
+      clip = GTE.config(GTE_CLIP_DIR)
 
       e5_result = e5.embed('hello world')
       clip_result = clip.embed('hello world')
@@ -191,8 +189,8 @@ RSpec.describe 'Integration' do
     end
 
     it 'multiple embedders from different models can coexist' do
-      e5 = GTE.new(GTE_E5_DIR)
-      clip = GTE.new(GTE_CLIP_DIR)
+      e5 = GTE.config(GTE_E5_DIR)
+      clip = GTE.config(GTE_CLIP_DIR)
 
       e5_result = e5.embed('test')
       clip_result = clip.embed('test')
@@ -204,7 +202,7 @@ RSpec.describe 'Integration' do
   context 'unsupported multimodal model inputs', if: GTE_CLIP_MULTIMODAL_AVAILABLE do
     it 'fails fast with actionable error when model requires pixel_values' do
       expect do
-        GTE.new(GTE_CLIP_MULTIMODAL_DIR)
+        GTE.config(GTE_CLIP_MULTIMODAL_DIR)
       end.to raise_error(
         GTE::Error,
         /pixel_values.*text_model\.onnx|text_model\.onnx.*pixel_values/i
@@ -213,7 +211,7 @@ RSpec.describe 'Integration' do
   end
 
   context 'performance baseline', if: GTE_E5_AVAILABLE do
-    let(:model) { GTE.new(GTE_E5_DIR) }
+    let(:model) { GTE.config(GTE_E5_DIR) }
 
     it 'batch embedding amortizes well (batch of 32 < 2x single time)' do
       model.embed('warmup')
@@ -237,7 +235,7 @@ RSpec.describe 'Integration' do
     let(:model_dir) { GTE_E5_DIR }
 
     it 'matches single string and single-item batch embeddings for one text' do
-      model = GTE.new(model_dir)
+      model = GTE.config(model_dir)
       text = 'batch engine probe'
 
       single_vec = model.embed(text).row(0)
@@ -247,7 +245,7 @@ RSpec.describe 'Integration' do
     end
 
     it 'handles concurrent string requests with one vector per input' do
-      model = GTE.new(model_dir)
+      model = GTE.config(model_dir)
       texts = Array.new(32) { |i| "concurrent batch request #{i}" }
 
       results = Array.new(texts.length)

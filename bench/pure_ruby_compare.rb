@@ -212,7 +212,7 @@ resolved.each do |key, cfg|
   puts "\n#{label} (#{key})"
   puts "  dir: #{Pathname.new(model_dir).relative_path_from(Pathname.new(ROOT))}"
 
-  gte_model = GTE.new(model_dir)
+  gte_model = GTE.config(model_dir)
   pure_model = PureRubyTextEmbedding::TextEncoder.new(model_dir: model_dir)
 
   probe_texts = cfg.fetch('texts')

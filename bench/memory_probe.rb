@@ -64,23 +64,23 @@ puts
 
 report('boot')
 
-gte_a = GTE.new(options[:model_dir])
+gte_a = GTE.config(options[:model_dir])
 report('gte fetch #1')
 gte_a.embed('query: warmup')
 report('gte warmup')
 
-gte_b = GTE.new(options[:model_dir])
+gte_b = GTE.config(options[:model_dir])
 report('gte fetch #2 (same key)')
 puts "same_instance=#{gte_a.equal?(gte_b)}"
 
 texts = Array.new(options[:burst]) { |i| "query: memory probe #{i}" }
 burst('gte thread burst', workers: options[:workers], requests: texts) { |text| gte_a.embed(text) }
 
-gte_new = GTE.new(options[:model_dir])
+gte_new = GTE.config(options[:model_dir])
 report('gte new #2 (same key)')
 puts "new_reuses_instance=#{gte_new.equal?(gte_a)}"
 
-gte_full_throttle = GTE.new(options[:model_dir], num_threads: 0)
+gte_full_throttle = GTE.config(options[:model_dir]) { |config| config.threads = 0 }
 report('gte new (different key)')
 puts "different_key_distinct=#{!gte_full_throttle.equal?(gte_a)}"
 burst('gte two-key burst', workers: options[:workers], requests: texts) do |text|
