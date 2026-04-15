@@ -1,14 +1,13 @@
 use crate::error::{GteError, Result};
 use crate::model_config::{ExtractorMode, ModelConfig};
+use crate::pipeline::{extract_output_tensor, InputTensors};
 use crate::postprocess::mean_pool;
 use crate::tokenizer::Tokenized;
-use ndarray::{Array2, ArrayView2, Ix2};
+use ndarray::{Array2, Ix2};
 use ort::execution_providers::{
     CoreMLExecutionProvider, ExecutionProviderDispatch, XNNPACKExecutionProvider,
 };
 use ort::session::Session;
-use ort::session::SessionInputValue;
-use ort::value::Value;
 use std::path::Path;
 
 pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Result<Session> {
@@ -59,44 +58,9 @@ pub fn run_session(
     tokenized: &Tokenized,
     config: &ModelConfig,
 ) -> Result<Array2<f32>> {
-    let input_ids_view: ArrayView2<'_, i64> = ArrayView2::from_shape(
-        (tokenized.rows, tokenized.cols),
-        tokenized.input_ids.as_slice(),
-    )?;
-    let attn_masks_view: ArrayView2<'_, i64> = ArrayView2::from_shape(
-        (tokenized.rows, tokenized.cols),
-        tokenized.attn_masks.as_slice(),
-    )?;
-
-    let mut inputs = Vec::with_capacity(2 + usize::from(tokenized.type_ids.is_some()));
-    inputs.push((
-        "input_ids",
-        SessionInputValue::from(Value::from_array(input_ids_view)?),
-    ));
-    if config.with_attention_mask {
-        inputs.push((
-            "attention_mask",
-            SessionInputValue::from(Value::from_array(attn_masks_view)?),
-        ));
-    }
-    if let Some(type_ids) = tokenized.type_ids.as_deref() {
-        let type_ids_view: ArrayView2<'_, i64> =
-            ArrayView2::from_shape((tokenized.rows, tokenized.cols), type_ids)?;
-        inputs.push((
-            "token_type_ids",
-            SessionInputValue::from(Value::from_array(type_ids_view)?),
-        ));
-    }
-
-    let outputs = session.run(inputs)?;
-    let tensor_value = outputs.get(config.output_tensor.as_str()).ok_or_else(|| {
-        GteError::Inference(format!(
-            "output tensor '{}' not found in model outputs",
-            &config.output_tensor
-        ))
-    })?;
-
-    let array = tensor_value.try_extract_tensor::<f32>()?;
+    let input_tensors = InputTensors::from_tokenized(tokenized, config.with_attention_mask)?;
+    let outputs = session.run(input_tensors.inputs)?;
+    let array = extract_output_tensor(&outputs, config.output_tensor.as_str())?;
 
     match config.mode {
         ExtractorMode::Token(idx) => {
@@ -117,7 +81,7 @@ pub fn run_session(
                     ndim
                 ))
             })?;
-            mean_pool(hidden_states, attn_masks_view)
+            mean_pool(hidden_states.view(), input_tensors.attention_mask)
         }
         ExtractorMode::Raw => Ok(array.into_dimensionality::<Ix2>()?.into_owned()),
     }

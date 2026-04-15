@@ -3,6 +3,7 @@
 e5_dir = ENV.fetch('GTE_MODEL_DIR', nil)
 siglip2_dir = ENV.fetch('GTE_SIGLIP2_DIR', nil)
 clip_dir = ENV.fetch('GTE_CLIP_DIR', nil)
+rerank_dir = ENV.fetch('GTE_RERANK_DIR', nil)
 clip_multimodal_dir = ENV.fetch('GTE_CLIP_MULTIMODAL_DIR', nil)
 
 GTE_E5_DIR = e5_dir.freeze
@@ -15,6 +16,9 @@ GTE_SIGLIP2_EMBEDDING_DIM = ENV.fetch('GTE_SIGLIP2_EMBEDDING_DIM', '768').to_i
 
 GTE_CLIP_DIR = clip_dir.freeze
 GTE_CLIP_AVAILABLE = !(clip_dir && File.exist?(File.join(clip_dir, 'tokenizer.json'))).freeze.nil?
+
+GTE_RERANK_DIR = rerank_dir.freeze
+GTE_RERANK_AVAILABLE = !(rerank_dir && File.exist?(File.join(rerank_dir, 'tokenizer.json'))).freeze.nil?
 
 GTE_CLIP_MULTIMODAL_DIR = clip_multimodal_dir.freeze
 GTE_CLIP_MULTIMODAL_AVAILABLE = !(clip_multimodal_dir && File.exist?(File.join(clip_multimodal_dir,

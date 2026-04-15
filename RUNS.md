@@ -1589,3 +1589,92 @@ Performance run ledger for Puma-like single-request concurrency benchmarks.
   }
 }
 ```
+
+## 2026-04-15T15:51:09Z | v0.0.5 | 8fec7f2
+- Goal (response-time p95 ratio all models): PASS
+- Regression vs previous run (GTE response-time p95 <= +15.0%): PASS
+
+```json
+{
+  "kind": "puma_compare_run",
+  "recorded_at": "2026-04-15T15:51:17Z",
+  "generated_at": "2026-04-15T15:51:09Z",
+  "gem_version": "0.0.5",
+  "git_sha": "8fec7f2",
+  "platform": "arm64-darwin25",
+  "ruby_version": "3.4.8",
+  "mode": "puma_like_in_process",
+  "concurrency": 16,
+  "iterations": 80,
+  "run_samples": 3,
+  "thresholds": {
+    "goal_metric": "response_time_p95",
+    "sample_aggregation": "median",
+    "min_p95_ratio": 1.95,
+    "regression_tolerance": 0.15
+  },
+  "status": {
+    "goal_response_p95_ratio_all_models": true,
+    "regression_vs_previous": true,
+    "regression_baseline": "previous_run"
+  },
+  "metrics": {
+    "e5": {
+      "gte_response_p95_ms": 55.976000148802996,
+      "pure_response_p95_ms": 192.0799999497831,
+      "response_ratio_p95": 3.431470620251,
+      "gte_response_median_ms": 37.041000090539455,
+      "response_ratio_median": 2.7029507796988526,
+      "gte_service_p95_ms": 17.659000121057034,
+      "pure_service_p95_ms": 3.0819999519735575,
+      "service_ratio_p95": 0.17452856508554546,
+      "gte_throughput_rps": 1381.26316433013,
+      "pure_throughput_rps": 404.1526683885568
+    },
+    "clip": {
+      "gte_response_p95_ms": 72.39399990066886,
+      "pure_response_p95_ms": 189.57599997520447,
+      "response_ratio_p95": 2.6186700587800087,
+      "gte_response_median_ms": 44.749999884516,
+      "response_ratio_median": 2.1771620182761287,
+      "gte_service_p95_ms": 25.972000090405345,
+      "pure_service_p95_ms": 3.284999867901206,
+      "service_ratio_p95": 0.12648236009804883,
+      "gte_throughput_rps": 1093.1052370552122,
+      "pure_throughput_rps": 409.7835832219251
+    },
+    "siglip2": {
+      "gte_response_p95_ms": 143.93800008110702,
+      "pure_response_p95_ms": 358.0080000683665,
+      "response_ratio_p95": 2.4872375596898255,
+      "gte_response_median_ms": 93.34899997338653,
+      "response_ratio_median": 1.9856131294164998,
+      "gte_service_p95_ms": 42.720000026747584,
+      "pure_service_p95_ms": 5.267000058665872,
+      "service_ratio_p95": 0.12329119979794312,
+      "gte_throughput_rps": 549.8055066292224,
+      "pure_throughput_rps": 223.091660061427
+    }
+  },
+  "regressions": {
+    "e5": {
+      "previous_gte_response_p95_ms": 75.32499986700714,
+      "current_gte_response_p95_ms": 55.976000148802996,
+      "allowed_gte_response_p95_ms": 86.6237498470582,
+      "regressed": false
+    },
+    "clip": {
+      "previous_gte_response_p95_ms": 88.95400003530085,
+      "current_gte_response_p95_ms": 72.39399990066886,
+      "allowed_gte_response_p95_ms": 102.29710004059596,
+      "regressed": false
+    },
+    "siglip2": {
+      "previous_gte_response_p95_ms": 201.11799985170364,
+      "current_gte_response_p95_ms": 143.93800008110702,
+      "allowed_gte_response_p95_ms": 231.28569982945916,
+      "regressed": false
+    }
+  }
+}
+```

@@ -2,6 +2,7 @@
 
 use crate::embedder::{normalize_l2, Embedder};
 use crate::error::GteError;
+use crate::reranker::Reranker;
 use magnus::{function, method, prelude::*, wrap, Error, RArray, Ruby};
 use std::os::raw::c_void;
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -11,6 +12,12 @@ use std::sync::Arc;
 pub struct RbEmbedder {
     inner: Arc<Embedder>,
     normalize: bool,
+}
+
+#[wrap(class = "GTE::Reranker", free_immediately, size)]
+pub struct RbReranker {
+    inner: Arc<Reranker>,
+    sigmoid: bool,
 }
 
 #[wrap(class = "GTE::Tensor", free_immediately, size)]
@@ -28,6 +35,15 @@ struct InferArgs {
 }
 
 unsafe impl Send for InferArgs {}
+
+struct ScoreArgs {
+    reranker: *const Reranker,
+    pairs: *const Vec<(String, String)>,
+    apply_sigmoid: bool,
+    result: Option<Result<Vec<f32>, GteError>>,
+}
+
+unsafe impl Send for ScoreArgs {}
 
 fn panic_payload_to_string(payload: Box<dyn std::any::Any + Send>) -> String {
     if let Some(msg) = payload.downcast_ref::<&str>() {
@@ -67,6 +83,34 @@ fn infer_without_gvl(
     Ok(embeddings)
 }
 
+fn score_without_gvl(
+    reranker: &Arc<Reranker>,
+    pairs: Vec<(String, String)>,
+    apply_sigmoid: bool,
+) -> Result<Vec<f32>, Error> {
+    let scores = unsafe {
+        let mut args = ScoreArgs {
+            reranker: Arc::as_ptr(reranker),
+            pairs: &pairs as *const Vec<(String, String)>,
+            apply_sigmoid,
+            result: None,
+        };
+        rb_sys::rb_thread_call_without_gvl(
+            Some(run_score_without_gvl),
+            &mut args as *mut ScoreArgs as *mut c_void,
+            None,
+            std::ptr::null_mut(),
+        );
+        let result = args.result.take().ok_or_else(|| {
+            magnus::Error::from(GteError::Inference(
+                "reranking did not return a result".to_string(),
+            ))
+        })?;
+        result.map_err(magnus::Error::from)?
+    };
+    Ok(scores)
+}
+
 unsafe extern "C" fn run_without_gvl(ptr: *mut c_void) -> *mut c_void {
     let args = &mut *(ptr as *mut InferArgs);
     let run_result = catch_unwind(AssertUnwindSafe(|| {
@@ -82,6 +126,22 @@ unsafe extern "C" fn run_without_gvl(ptr: *mut c_void) -> *mut c_void {
         Ok(result) => result,
         Err(payload) => Err(GteError::Inference(format!(
             "panic during inference: {}",
+            panic_payload_to_string(payload),
+        ))),
+    });
+    std::ptr::null_mut()
+}
+
+unsafe extern "C" fn run_score_without_gvl(ptr: *mut c_void) -> *mut c_void {
+    let args = &mut *(ptr as *mut ScoreArgs);
+    let run_result = catch_unwind(AssertUnwindSafe(|| {
+        let scores = (*args.reranker).score_pairs(&*args.pairs, args.apply_sigmoid)?;
+        Ok(scores.to_vec())
+    }));
+    args.result = Some(match run_result {
+        Ok(result) => result,
+        Err(payload) => Err(GteError::Inference(format!(
+            "panic during reranking: {}",
             panic_payload_to_string(payload),
         ))),
     });
@@ -151,6 +211,68 @@ impl RbEmbedder {
     pub fn rb_embed_one(_ruby: &Ruby, rb_self: &Self, text: String) -> Result<RbTensor, Error> {
         let embeddings = infer_without_gvl(&rb_self.inner, rb_self.normalize, vec![text])?;
         tensor_from_array(embeddings)
+    }
+}
+
+impl RbReranker {
+    pub fn rb_new(
+        _ruby: &Ruby,
+        dir_path: String,
+        num_threads: usize,
+        optimization_level: u8,
+        model_name: String,
+        sigmoid: bool,
+        output_tensor: String,
+        max_length: usize,
+    ) -> Result<Self, Error> {
+        let name = if model_name.is_empty() {
+            None
+        } else {
+            Some(model_name.as_str())
+        };
+        let output_override = if output_tensor.is_empty() {
+            None
+        } else {
+            Some(output_tensor.as_str())
+        };
+        let max_length_override = if max_length == 0 {
+            None
+        } else {
+            Some(max_length)
+        };
+        let reranker = Reranker::from_dir(
+            &dir_path,
+            num_threads,
+            optimization_level,
+            name,
+            output_override,
+            max_length_override,
+        )
+        .map_err(magnus::Error::from)?;
+        Ok(RbReranker {
+            inner: Arc::new(reranker),
+            sigmoid,
+        })
+    }
+
+    pub fn rb_score(
+        ruby: &Ruby,
+        rb_self: &Self,
+        query: String,
+        candidates: RArray,
+    ) -> Result<RArray, Error> {
+        let candidates: Vec<String> = candidates.to_vec()?;
+        let pairs: Vec<(String, String)> = candidates
+            .into_iter()
+            .map(|candidate| (query.clone(), candidate))
+            .collect();
+        let scores = score_without_gvl(&rb_self.inner, pairs, rb_self.sigmoid)?;
+
+        let out = ruby.ary_new_capa(scores.len());
+        for score in scores {
+            out.push(score)?;
+        }
+        Ok(out)
     }
 }
 
@@ -243,6 +365,10 @@ pub fn register(ruby: &Ruby) -> Result<(), Error> {
     embedder_class.define_singleton_method("new", function!(RbEmbedder::rb_new, 7))?;
     embedder_class.define_method("embed", method!(RbEmbedder::rb_embed, 1))?;
     embedder_class.define_method("embed_one", method!(RbEmbedder::rb_embed_one, 1))?;
+
+    let reranker_class = module.define_class("Reranker", ruby.class_object())?;
+    reranker_class.define_singleton_method("new", function!(RbReranker::rb_new, 7))?;
+    reranker_class.define_method("score", method!(RbReranker::rb_score, 2))?;
 
     let tensor_class = module.define_class("Tensor", ruby.class_object())?;
     tensor_class.define_method("rows", method!(RbTensor::rows, 0))?;

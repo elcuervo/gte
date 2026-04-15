@@ -1,7 +1,10 @@
 pub mod embedder;
 pub mod error;
 pub mod model_config;
+pub mod model_profile;
+pub mod pipeline;
 pub mod postprocess;
+pub mod reranker;
 pub mod session;
 pub mod tokenizer;
 

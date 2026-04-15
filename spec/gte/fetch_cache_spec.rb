@@ -26,6 +26,12 @@ RSpec.describe 'GTE model cache', if: GTE_E5_AVAILABLE do
     expect(a.object_id).not_to eq(b.object_id)
   end
 
+  it 'accepts 0 threads for full-throttle mode as a separate cache key' do
+    default_model = GTE.new(dir)
+    full_throttle = GTE.new(dir, num_threads: 0)
+    expect(default_model.object_id).not_to eq(full_throttle.object_id)
+  end
+
   it 'uses independent cache entries when normalize differs' do
     normalized = GTE.new(dir, normalize: true)
     raw = GTE.new(dir, normalize: false)
@@ -42,5 +48,9 @@ RSpec.describe 'GTE model cache', if: GTE_E5_AVAILABLE do
     a = GTE.new(dir, max_length: 64)
     b = GTE.new(dir, max_length: 128)
     expect(a.object_id).not_to eq(b.object_id)
+  end
+
+  it 'rejects negative num_threads' do
+    expect { GTE.new(dir, num_threads: -1) }.to raise_error(ArgumentError, /num_threads/)
   end
 end

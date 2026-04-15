@@ -61,6 +61,18 @@ impl Tokenizer {
 
         build_tokenized(&encodings, self.with_type_ids)
     }
+
+    pub fn tokenize_pairs(&self, pairs: &[(String, String)]) -> Result<Tokenized> {
+        let encode_inputs: Vec<tokenizers::EncodeInput<'_>> = pairs
+            .iter()
+            .map(|(left, right)| (left.as_str(), right.as_str()).into())
+            .collect();
+        let encodings = self
+            .tokenizer
+            .encode_batch_fast(encode_inputs, true)
+            .map_err(|e| GteError::Tokenizer(e.to_string()))?;
+        build_tokenized(&encodings, self.with_type_ids)
+    }
 }
 
 fn build_tokenized_single(

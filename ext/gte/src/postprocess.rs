@@ -75,6 +75,12 @@ pub fn normalize_l2(mut embeddings: Array2<f32>) -> Array2<f32> {
     embeddings
 }
 
+pub fn sigmoid_scores(mut scores: ndarray::ArrayViewMut1<'_, f32>) {
+    scores.map_inplace(|value| {
+        *value = 1.0 / (1.0 + (-*value).exp());
+    });
+}
+
 fn mean_pool_contiguous(
     hidden: &[f32],
     attention_mask: &[i64],

@@ -26,6 +26,16 @@ custom_model = GTE.new(
   output_tensor: "pooled_sentence_embeddings_debiased_normalized",
   max_length: 512
 )
+
+# Reranking (text pairs -> scores)
+reranker = GTE.reranker(ENV.fetch("GTE_RERANK_DIR"), sigmoid: true)
+ranked = reranker.rerank(
+  query: "how to train a neural network?",
+  candidates: [
+    "Backpropagation and gradient descent are core techniques.",
+    "This recipe uses flour and eggs."
+  ]
+)
 ```
 
 For Puma or other thread pools, prefer process-local reuse:

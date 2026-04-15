@@ -268,7 +268,7 @@ if options[:run_samples] <= 0
   exit 1
 end
 
-if options[:gte_threads] && options[:gte_threads] < 0
+if options[:gte_threads]&.negative?
   warn('gte-threads must be >= 0')
   exit 1
 end
