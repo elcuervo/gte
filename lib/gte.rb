@@ -36,15 +36,7 @@ module GTE
     private
 
     def cache_key(cfg)
-      [
-        cfg.model_dir,
-        cfg.threads,
-        cfg.optimization_level,
-        cfg.model_name,
-        cfg.normalize,
-        cfg.output_tensor,
-        cfg.max_length
-      ]
+      SecureRandom.hex(cfg.to_h)
     end
   end
 end
