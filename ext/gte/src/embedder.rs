@@ -39,6 +39,7 @@ impl Embedder {
         model_name: Option<&str>,
         output_tensor_override: Option<&str>,
         max_length_override: Option<usize>,
+        execution_providers_override: Option<&str>,
     ) -> Result<Self> {
         const PREFERRED_EMBEDDING_OUTPUTS: [&str; 4] = [
             "pooler_output",
@@ -73,6 +74,7 @@ impl Embedder {
             with_attention_mask: true,
             num_threads,
             optimization_level,
+            execution_providers: execution_providers_override.map(str::to_string),
         };
         let session = build_session(&model_path, &session_config)?;
 
@@ -96,6 +98,7 @@ impl Embedder {
             with_attention_mask,
             num_threads,
             optimization_level,
+            execution_providers: execution_providers_override.map(str::to_string),
         };
 
         let tokenizer = Tokenizer::new(&tokenizer_path, config.max_length, config.with_type_ids)?;

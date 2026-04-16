@@ -15,6 +15,12 @@ RSpec.describe 'GTE::Reranker' do
     it 'responds to convenience rerank API' do
       expect(GTE::Reranker.instance_methods(false)).to include(:rerank)
     end
+
+    it 'accepts execution_providers in config without argument errors' do
+      expect do
+        GTE::Reranker.config('/nonexistent/dir') { |config| config.with(execution_providers: 'cpu') }
+      end.to raise_error(GTE::Error)
+    end
   end
 
   context 'with real reranker fixture', if: GTE_RERANK_AVAILABLE do

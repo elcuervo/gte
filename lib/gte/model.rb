@@ -8,15 +8,7 @@ module GTE
       raise ArgumentError, 'config must be a GTE::Config::Text' unless config.is_a?(Config::Text)
 
       @config = config
-      @embedder = GTE::Embedder.new(
-        config.model_dir,
-        config.threads,
-        config.optimization_level,
-        config.model_name.to_s,
-        config.normalize,
-        config.output_tensor.to_s,
-        config.max_length || 0
-      )
+      @embedder = GTE::Embedder.from_config(config)
     end
 
     def embed(texts)

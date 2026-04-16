@@ -46,9 +46,9 @@ This repository is a Ruby gem with a Rust extension for text embeddings.
 
 ## Execution Provider Policy
 
-- Default execution provider is **xnnpack only** on all platforms, including macOS aarch64.
+- Default execution provider is **CPU fallback** via ONNX Runtime default provider (`GTE_EXECUTION_PROVIDERS=cpu` or unset).
 - Do NOT add CoreML as a default provider. CoreML adds significant overhead for text embedding models on Apple Silicon (observed 3–6× latency increase for CLIP, 2× for Siglip2) despite appearing to be a sensible acceleration backend.
-- Users who want CoreML can opt in via `GTE_EXECUTION_PROVIDERS=xnnpack,coreml`.
+- Users who want explicit provider registration can opt in via `GTE_EXECUTION_PROVIDERS=xnnpack` or `GTE_EXECUTION_PROVIDERS=xnnpack,coreml`.
 
 ## Useful Commands
 

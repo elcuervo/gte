@@ -292,7 +292,7 @@ threads_label = if options[:gte_threads].nil?
                   options[:gte_threads].to_s
                 end
 puts "gte threads: #{threads_label}"
-puts "execution providers: #{options[:exec_providers] || ENV['GTE_EXECUTION_PROVIDERS'] || 'xnnpack (runtime default)'}"
+puts "execution providers: #{options[:exec_providers] || ENV['GTE_EXECUTION_PROVIDERS'] || 'cpu (runtime default)'}"
 puts "thresholds: max_abs<=#{options[:max_abs]} min_cos>=#{options[:min_cos]} response_p95_ratio>=#{options[:min_p95_ratio]}x"
 
 payload = {

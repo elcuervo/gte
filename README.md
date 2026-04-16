@@ -123,12 +123,28 @@ Input policy is text-only. Graphs requiring unsupported multimodal inputs (such 
 
 ## Execution Providers
 
-Default execution provider is `xnnpack` on all platforms (including macOS arm64).
+Default behavior is CPU fallback via ONNX Runtime's default provider (no explicit provider registration).
 
-To opt in to CoreML explicitly:
+Configure providers with `GTE_EXECUTION_PROVIDERS` (comma-separated, case-insensitive).
+Supported values:
+
+- `cpu` or `none`: CPU fallback (skip explicit provider registration)
+- `xnnpack`
+- `coreml`
+
+Examples:
 
 ```bash
+export GTE_EXECUTION_PROVIDERS=cpu
 export GTE_EXECUTION_PROVIDERS=xnnpack,coreml
+```
+
+Ruby per-instance override (takes precedence over `GTE_EXECUTION_PROVIDERS`):
+
+```ruby
+model = GTE.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
+  config.with(execution_providers: "cpu")
+end
 ```
 
 ## Development

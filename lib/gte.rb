@@ -9,6 +9,7 @@ rescue LoadError
 end
 
 require 'gte/config'
+require 'gte/embedder'
 require 'gte/model'
 require 'gte/reranker'
 
@@ -25,7 +26,8 @@ module GTE
         model_name: nil,
         normalize: true,
         output_tensor: nil,
-        max_length: nil
+        max_length: nil,
+        execution_providers: nil
       )
 
       cfg = yield(cfg) if block_given?

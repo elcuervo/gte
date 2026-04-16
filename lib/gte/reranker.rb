@@ -24,7 +24,8 @@ module GTE
           model_name: nil,
           sigmoid: false,
           output_tensor: nil,
-          max_length: nil
+          max_length: nil,
+          execution_providers: nil
         )
       end
 
@@ -36,7 +37,8 @@ module GTE
           cfg.model_name.to_s,
           cfg.sigmoid,
           cfg.output_tensor.to_s,
-          cfg.max_length || 0
+          cfg.max_length || 0,
+          cfg.execution_providers.to_s
         )
       end
     end

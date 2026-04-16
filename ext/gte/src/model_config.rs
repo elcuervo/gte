@@ -14,4 +14,5 @@ pub struct ModelConfig {
     pub with_attention_mask: bool,
     pub num_threads: usize,
     pub optimization_level: u8,
+    pub execution_providers: Option<String>,
 }

@@ -33,6 +33,7 @@ impl Reranker {
         model_name: Option<&str>,
         output_tensor_override: Option<&str>,
         max_length_override: Option<usize>,
+        execution_providers_override: Option<&str>,
     ) -> Result<Self> {
         let dir = dir.as_ref();
         let tokenizer_path = resolve_tokenizer_path(dir)?;
@@ -60,6 +61,7 @@ impl Reranker {
             with_attention_mask: true,
             num_threads,
             optimization_level,
+            execution_providers: execution_providers_override.map(str::to_string),
         };
         let session = build_session(&model_path, &probe_config)?;
 

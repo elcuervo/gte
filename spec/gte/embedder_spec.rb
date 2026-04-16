@@ -12,6 +12,11 @@ RSpec.describe 'GTE::Embedder' do
       expect(GTE::Embedder).to respond_to(:new)
     end
 
+    it 'has config helpers' do
+      expect(GTE::Embedder).to respond_to(:config)
+      expect(GTE::Embedder).to respond_to(:from_config)
+    end
+
     it 'responds to :embed' do
       expect(GTE::Embedder.instance_methods(false)).to include(:embed)
     end
@@ -28,16 +33,22 @@ RSpec.describe 'GTE::Embedder' do
     end
   end
 
-  describe '.new with invalid directory' do
+  describe 'config helpers with invalid directory' do
     it 'raises GTE::Error when directory does not contain model' do
       expect do
-        GTE::Embedder.new('/nonexistent/dir', 0, 3, '', true, '', 0)
+        GTE::Embedder.config('/nonexistent/dir') { |cfg| cfg.with(threads: 0) }
       end.to raise_error(GTE::Error)
+    end
+
+    it 'raises ArgumentError when from_config receives wrong type' do
+      expect do
+        GTE::Embedder.from_config(:bad)
+      end.to raise_error(ArgumentError, /config must be a GTE::Config::Text/)
     end
   end
 
   context 'with real model fixture', if: GTE_FIXTURES_AVAILABLE do
-    let(:embedder) { GTE::Embedder.new(GTE_E5_DIR, 0, 3, '', true, '', 0) }
+    let(:embedder) { GTE::Embedder.config(GTE_E5_DIR) { |cfg| cfg.with(threads: 0) } }
     let(:sample_texts) { ['Hello world', 'The quick brown fox'] }
     let(:single_text)  { ['Hello world'] }
 
