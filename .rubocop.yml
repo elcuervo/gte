@@ -3,6 +3,7 @@ AllCops:
   NewCops: enable
   Exclude:
     - '.bundle/**/*'
+    - 'vendor/bundle/**/*'
     - 'tmp/**/*'
     - 'pkg/**/*'
 
