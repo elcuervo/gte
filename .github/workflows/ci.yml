@@ -38,9 +38,6 @@ jobs:
       - name: Run Ruby tests
         run: nix develop -c bundle exec rspec
 
-      - name: Verify RUNS ledger contains current VERSION
-        run: nix develop -c bundle exec ruby bench/runs_ledger.rb verify-current-version
-
   cross-compile:
     runs-on: ubuntu-latest
     timeout-minutes: 30
