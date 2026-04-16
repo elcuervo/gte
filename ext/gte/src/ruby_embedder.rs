@@ -39,7 +39,8 @@ unsafe impl Send for InferArgs {}
 
 struct ScoreArgs {
     reranker: *const Reranker,
-    pairs: *const Vec<(String, String)>,
+    query: *const String,
+    candidates: *const Vec<String>,
     apply_sigmoid: bool,
     result: Option<Result<Vec<f32>, GteError>>,
 }
@@ -86,13 +87,15 @@ fn infer_without_gvl(
 
 fn score_without_gvl(
     reranker: &Arc<Reranker>,
-    pairs: Vec<(String, String)>,
+    query: String,
+    candidates: Vec<String>,
     apply_sigmoid: bool,
 ) -> Result<Vec<f32>, Error> {
     let scores = unsafe {
         let mut args = ScoreArgs {
             reranker: Arc::as_ptr(reranker),
-            pairs: &pairs as *const Vec<(String, String)>,
+            query: &query as *const String,
+            candidates: &candidates as *const Vec<String>,
             apply_sigmoid,
             result: None,
         };
@@ -136,8 +139,7 @@ unsafe extern "C" fn run_without_gvl(ptr: *mut c_void) -> *mut c_void {
 unsafe extern "C" fn run_score_without_gvl(ptr: *mut c_void) -> *mut c_void {
     let args = &mut *(ptr as *mut ScoreArgs);
     let run_result = catch_unwind(AssertUnwindSafe(|| {
-        let scores = (*args.reranker).score_pairs(&*args.pairs, args.apply_sigmoid)?;
-        Ok(scores.to_vec())
+        (*args.reranker).score(&*args.query, &*args.candidates, args.apply_sigmoid)
     }));
     args.result = Some(match run_result {
         Ok(result) => result,
@@ -297,11 +299,7 @@ impl RbReranker {
         candidates: RArray,
     ) -> Result<RArray, Error> {
         let candidates: Vec<String> = candidates.to_vec()?;
-        let pairs: Vec<(String, String)> = candidates
-            .into_iter()
-            .map(|candidate| (query.clone(), candidate))
-            .collect();
-        let scores = score_without_gvl(&rb_self.inner, pairs, rb_self.sigmoid)?;
+        let scores = score_without_gvl(&rb_self.inner, query, candidates, rb_self.sigmoid)?;
 
         let out = ruby.ary_new_capa(scores.len());
         for score in scores {

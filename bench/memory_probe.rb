@@ -80,7 +80,7 @@ gte_new = GTE.config(options[:model_dir])
 report('gte new #2 (same key)')
 puts "new_reuses_instance=#{gte_new.equal?(gte_a)}"
 
-gte_full_throttle = GTE.config(options[:model_dir]) { |config| config.threads = 0 }
+gte_full_throttle = GTE.config(options[:model_dir]) { |config| config.with(threads: 0) }
 report('gte new (different key)')
 puts "different_key_distinct=#{!gte_full_throttle.equal?(gte_a)}"
 burst('gte two-key burst', workers: options[:workers], requests: texts) do |text|

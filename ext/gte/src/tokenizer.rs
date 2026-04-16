@@ -76,6 +76,18 @@ impl Tokenizer {
             .map_err(|e| GteError::Tokenizer(e.to_string()))?;
         build_tokenized(&encodings, self.with_type_ids)
     }
+
+    pub fn tokenize_query_candidates(&self, query: &str, candidates: &[String]) -> Result<Tokenized> {
+        let encode_inputs: Vec<tokenizers::EncodeInput<'_>> = candidates
+            .iter()
+            .map(|candidate| (query, candidate.as_str()).into())
+            .collect();
+        let encodings = self
+            .tokenizer
+            .encode_batch_fast(encode_inputs, true)
+            .map_err(|e| GteError::Tokenizer(e.to_string()))?;
+        build_tokenized(&encodings, self.with_type_ids)
+    }
 }
 
 pub fn parse_padding_mode_override(value: Option<&str>) -> Result<Option<PaddingMode>> {
@@ -162,21 +174,17 @@ fn build_tokenized(encodings: &[tokenizers::Encoding], with_type_ids: bool) -> R
     let mut type_ids = with_type_ids.then(|| Vec::with_capacity(len));
 
     for encoding in encodings {
-        input_ids.extend(encoding.get_ids().iter().map(|&value| i64::from(value)));
-        attn_masks.extend(
-            encoding
-                .get_attention_mask()
-                .iter()
-                .map(|&value| i64::from(value)),
-        );
+        for &value in encoding.get_ids() {
+            input_ids.push(i64::from(value));
+        }
+        for &value in encoding.get_attention_mask() {
+            attn_masks.push(i64::from(value));
+        }
 
         if let Some(type_ids) = type_ids.as_mut() {
-            type_ids.extend(
-                encoding
-                    .get_type_ids()
-                    .iter()
-                    .map(|&value| i64::from(value)),
-            );
+            for &value in encoding.get_type_ids() {
+                type_ids.push(i64::from(value));
+            }
         }
     }
 

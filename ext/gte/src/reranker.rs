@@ -8,7 +8,6 @@ use crate::pipeline::{extract_output_tensor, InputTensors};
 use crate::postprocess::sigmoid_scores;
 use crate::session::build_session;
 use crate::tokenizer::{parse_padding_mode_override, Tokenizer};
-use ndarray::Array1;
 use ort::session::Session;
 use std::path::Path;
 
@@ -96,14 +95,27 @@ impl Reranker {
         })
     }
 
-    pub fn score_pairs(&self, pairs: &[(String, String)], apply_sigmoid: bool) -> Result<Array1<f32>> {
+    pub fn score_pairs(&self, pairs: &[(String, String)], apply_sigmoid: bool) -> Result<Vec<f32>> {
         let tokenized = self.tokenizer.tokenize_pairs(pairs)?;
-        let input_tensors = InputTensors::from_tokenized(&tokenized, self.config.with_attention_mask)?;
+        self.score_tokenized(&tokenized, apply_sigmoid)
+    }
+
+    pub fn score(&self, query: &str, candidates: &[String], apply_sigmoid: bool) -> Result<Vec<f32>> {
+        let tokenized = self.tokenizer.tokenize_query_candidates(query, candidates)?;
+        self.score_tokenized(&tokenized, apply_sigmoid)
+    }
+
+    fn score_tokenized(
+        &self,
+        tokenized: &crate::tokenizer::Tokenized,
+        apply_sigmoid: bool,
+    ) -> Result<Vec<f32>> {
+        let input_tensors = InputTensors::from_tokenized(tokenized, self.config.with_attention_mask)?;
         let outputs = self.session.run(input_tensors.inputs)?;
         let array = extract_output_tensor(&outputs, self.config.output_tensor.as_str())?;
 
         let mut scores = match array.ndim() {
-            1 => array.into_dimensionality::<ndarray::Ix1>()?.into_owned(),
+            1 => array.into_dimensionality::<ndarray::Ix1>()?.to_vec(),
             2 => {
                 let shape = array.shape();
                 if shape[1] == 0 {
@@ -112,7 +124,7 @@ impl Reranker {
                         self.config.output_tensor, shape
                     )));
                 }
-                array.slice(ndarray::s![.., 0]).into_owned()
+                array.slice(ndarray::s![.., 0]).to_vec()
             }
             n => {
                 return Err(GteError::Inference(format!(
@@ -123,10 +135,9 @@ impl Reranker {
         };
 
         if apply_sigmoid {
-            sigmoid_scores(scores.view_mut());
+            sigmoid_scores(ndarray::ArrayViewMut1::from(scores.as_mut_slice()));
         }
 
         Ok(scores)
     }
-
 }
