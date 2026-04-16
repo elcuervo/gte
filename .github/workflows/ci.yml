@@ -44,7 +44,6 @@ jobs:
 
       - name: Install Ruby dependencies
         run: |
-          nix develop -c bundle config set --local without bench
           nix develop -c bundle config set --local path vendor/bundle
           nix develop -c bundle install --jobs 4 --retry 3
 
