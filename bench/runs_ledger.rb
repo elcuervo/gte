@@ -174,13 +174,13 @@ def current_version
   File.read(File.expand_path('../VERSION', __dir__)).strip
 end
 
-def check_entry!(entry)
+def check_entry!(entry, goal_only: false)
   failures = []
   unless entry.dig('status', 'goal_response_p95_ratio_all_models')
     failures << 'goal failure: one or more models did not hit response-time p95 2x ratio'
   end
 
-  unless entry.dig('status', 'regression_vs_previous')
+  unless goal_only || entry.dig('status', 'regression_vs_previous')
     failures << 'regression failure: one or more models regressed above allowed response-time p95 tolerance'
   end
 
@@ -237,7 +237,8 @@ when 'check'
     runs: DEFAULT_RUNS_PATH,
     tolerance: DEFAULT_TOLERANCE,
     result: nil,
-    require_current_version: true
+    require_current_version: false,
+    goal_only: true
   }
 
   OptionParser.new do |opts|
@@ -246,18 +247,19 @@ when 'check'
     opts.on('--max-regression FLOAT', Float) { |value| options[:tolerance] = value }
     opts.on('--latest') { options[:result] = latest_result_path }
     opts.on('--[no-]require-current-version') { |value| options[:require_current_version] = value }
+    opts.on('--[no-]goal-only') { |value| options[:goal_only] = value }
   end.parse!(ARGV)
 
   raise LedgerError, '--result PATH or --latest is required' unless options[:result]
 
   result = load_result(options[:result])
-  entries = load_entries(options[:runs])
-  previous = previous_entry(entries, result)
+  entries = options[:goal_only] ? [] : load_entries(options[:runs])
+  previous = options[:goal_only] ? nil : previous_entry(entries, result)
   entry = build_entry(result, previous: previous, tolerance: options[:tolerance])
 
-  failures = check_entry!(entry)
+  failures = check_entry!(entry, goal_only: options[:goal_only])
 
-  if options[:require_current_version]
+  if options[:require_current_version] && !options[:goal_only]
     versions = entries.filter_map { |entry_item| entry_item['gem_version'] }
     versions << result.fetch('gem_version', nil)
     unless versions.compact.include?(current_version)
@@ -266,7 +268,11 @@ when 'check'
   end
 
   if failures.empty?
-    puts 'PASS: goal and regression checks succeeded'
+    if options[:goal_only]
+      puts 'PASS: goal checks succeeded'
+    else
+      puts 'PASS: goal and regression checks succeeded'
+    end
   else
     warn 'FAIL: run checks failed'
     failures.each { |failure| warn "  - #{failure}" }

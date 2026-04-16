@@ -56,7 +56,7 @@ namespace :bench do
     )
   end
 
-  desc 'Run Puma benchmark, append RUNS.md entry, and enforce goal/regression checks'
+  desc 'Run Puma benchmark, append RUNS.md entry, and enforce goal checks'
   task :record_run do
     run_in_nix(
       'bundle', 'exec', 'ruby', 'bench/puma_compare.rb',
@@ -74,7 +74,7 @@ namespace :bench do
     )
   end
 
-  desc 'Validate current Puma benchmark output against 2x goal and regression policy'
+  desc 'Validate current Puma benchmark output against 2x goal only'
   task :check_goal do
     run_in_nix(
       'bundle', 'exec', 'ruby', 'bench/runs_ledger.rb', 'check',
