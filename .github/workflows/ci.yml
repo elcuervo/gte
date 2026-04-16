@@ -39,6 +39,7 @@ jobs:
         run: nix develop -c bundle exec rspec
 
   cross-compile:
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
