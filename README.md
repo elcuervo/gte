@@ -55,11 +55,20 @@ Config fields and defaults:
 - `normalize`: `true` (L2 normalization at Ruby-facing API)
 - `output_tensor`: `nil` (auto-select output tensor)
 - `max_length`: `nil` (uses tokenizer/model defaults)
+- `execution_providers`: `nil` (falls back to `GTE_EXECUTION_PROVIDERS` / CPU default)
 
 Notes:
 
 - Return a `Config::Text` from the block (for example, `config.with(...)`).
 - Model instances are cached by full config key; different config values create different cached instances.
+
+Low-level embedder setup (without model cache):
+
+```ruby
+embedder = GTE::Embedder.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
+  config.with(threads: 0, execution_providers: "cpu")
+end
+```
 
 ## Reranker
 
@@ -97,6 +106,7 @@ Reranker config fields and defaults:
 - `sigmoid`: `false` (set `true` if you want bounded [0,1] style scores)
 - `output_tensor`: `nil`
 - `max_length`: `nil`
+- `execution_providers`: `nil`
 
 ## Runtime + Result Examples
 
@@ -170,8 +180,13 @@ nix develop -c bundle exec rake bench:matrix_sweep
 nix develop -c bundle exec ruby bench/memory_probe.rb --compare-pure
 ```
 
-For release tracking and regression detection, record a run entry in `RUNS.md`:
+To run benchmark + append a `RUNS.md` entry + enforce goal checks:
 
 ```bash
 make bench-record
 ```
+
+`bench/runs_ledger.rb check` is goal-focused by default:
+
+- Enforces goal metric (`response_time_p95` ratio threshold).
+- Does not require current-version coverage in `RUNS.md` unless explicitly enabled.

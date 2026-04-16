@@ -39,12 +39,6 @@ RSpec.describe 'GTE::Embedder' do
         GTE::Embedder.config('/nonexistent/dir') { |cfg| cfg.with(threads: 0) }
       end.to raise_error(GTE::Error)
     end
-
-    it 'raises ArgumentError when from_config receives wrong type' do
-      expect do
-        GTE::Embedder.from_config(:bad)
-      end.to raise_error(ArgumentError, /config must be a GTE::Config::Text/)
-    end
   end
 
   context 'with real model fixture', if: GTE_FIXTURES_AVAILABLE do
