@@ -18,9 +18,34 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@v30
 
+      - name: Cache Nix store
+        uses: actions/cache@v4
+        with:
+          path: /nix/store
+          key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
+          restore-keys: nix-${{ runner.os }}-
+
+      - name: Cache Bundler gems
+        uses: actions/cache@v4
+        with:
+          path: vendor/bundle
+          key: bundler-${{ runner.os }}-${{ hashFiles('Gemfile.lock') }}
+          restore-keys: bundler-${{ runner.os }}-
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ext/gte/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('ext/gte/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
       - name: Install Ruby dependencies
         run: |
           nix develop -c bundle config set --local without bench
+          nix develop -c bundle config set --local path vendor/bundle
           nix develop -c bundle install --jobs 4 --retry 3
 
       - name: Clippy
@@ -55,7 +80,7 @@ jobs:
       - uses: oxidize-rb/actions/setup-ruby-and-rust@v1.4.4
         with:
           ruby-version: "3.3"
-          bundler-cache: false
+          bundler-cache: true
           cargo-cache: true
           cargo-vendor: true
 
