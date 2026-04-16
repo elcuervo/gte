@@ -1,5 +1,5 @@
 use crate::error::{GteError, Result};
-use crate::model_config::{ExtractorMode, ModelConfig, PaddingMode};
+use crate::model_config::{ExtractorMode, ModelConfig, ModelLoadOverrides, PaddingMode};
 use crate::model_profile::{
     has_input, infer_extraction_mode, read_tokenizer_profile, resolve_default_text_model,
     resolve_named_model, resolve_tokenizer_path, select_output_tensor, validate_supported_text_inputs,
@@ -38,16 +38,11 @@ impl Embedder {
         })
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn from_dir<P: AsRef<Path>>(
         dir: P,
         num_threads: usize,
         optimization_level: u8,
-        model_name: Option<&str>,
-        output_tensor_override: Option<&str>,
-        max_length_override: Option<usize>,
-        padding_override: Option<&str>,
-        execution_providers_override: Option<&str>,
+        overrides: ModelLoadOverrides<'_>,
     ) -> Result<Self> {
         const PREFERRED_EMBEDDING_OUTPUTS: [&str; 4] = [
             "pooler_output",
@@ -58,13 +53,13 @@ impl Embedder {
 
         let dir = dir.as_ref();
         let tokenizer_path = resolve_tokenizer_path(dir)?;
-        let model_path = match model_name.filter(|s| !s.is_empty()) {
+        let model_path = match overrides.model_name.filter(|s| !s.is_empty()) {
             Some(name) => resolve_named_model(dir, name)?,
             None => resolve_default_text_model(dir)?,
         };
 
         let tokenizer_profile = read_tokenizer_profile(dir);
-        let max_length = if let Some(override_value) = max_length_override {
+        let max_length = if let Some(override_value) = overrides.max_length {
             if override_value == 0 {
                 return Err(GteError::Inference(
                     "max_length override must be greater than 0".to_string(),
@@ -74,7 +69,8 @@ impl Embedder {
         } else {
             tokenizer_profile.default_max_length
         };
-        let padding_mode = parse_padding_mode_override(padding_override)?.unwrap_or(PaddingMode::Auto);
+        let padding_mode =
+            parse_padding_mode_override(overrides.padding)?.unwrap_or(PaddingMode::Auto);
 
         let session_config = ModelConfig {
             max_length,
@@ -85,7 +81,7 @@ impl Embedder {
             with_attention_mask: true,
             num_threads,
             optimization_level,
-            execution_providers: execution_providers_override.map(str::to_string),
+            execution_providers: overrides.execution_providers.map(str::to_string),
         };
         let session = build_session(&model_path, &session_config)?;
 
@@ -93,7 +89,7 @@ impl Embedder {
         let with_type_ids = has_input(&session, "token_type_ids");
         let with_attention_mask = has_input(&session, "attention_mask");
         let output_tensor =
-            select_output_tensor(&session, output_tensor_override, &PREFERRED_EMBEDDING_OUTPUTS)?;
+            select_output_tensor(&session, overrides.output_tensor, &PREFERRED_EMBEDDING_OUTPUTS)?;
         let mode = infer_extraction_mode(&session, output_tensor.as_str())?;
         if matches!(mode, ExtractorMode::MeanPool) && !with_attention_mask {
             return Err(GteError::Inference(
@@ -110,7 +106,7 @@ impl Embedder {
             with_attention_mask,
             num_threads,
             optimization_level,
-            execution_providers: execution_providers_override.map(str::to_string),
+            execution_providers: overrides.execution_providers.map(str::to_string),
         };
 
         let tokenizer = Tokenizer::new(

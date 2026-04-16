@@ -25,3 +25,12 @@ pub struct ModelConfig {
     pub optimization_level: u8,
     pub execution_providers: Option<String>,
 }
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ModelLoadOverrides<'a> {
+    pub model_name: Option<&'a str>,
+    pub output_tensor: Option<&'a str>,
+    pub max_length: Option<usize>,
+    pub padding: Option<&'a str>,
+    pub execution_providers: Option<&'a str>,
+}

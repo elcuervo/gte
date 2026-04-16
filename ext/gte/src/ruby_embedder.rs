@@ -2,6 +2,7 @@
 
 use crate::embedder::{normalize_l2, Embedder};
 use crate::error::GteError;
+use crate::model_config::ModelLoadOverrides;
 use crate::reranker::Reranker;
 use magnus::{function, method, prelude::*, wrap, Error, RArray, Ruby};
 use std::os::raw::c_void;
@@ -199,15 +200,18 @@ impl RbEmbedder {
         } else {
             Some(padding.as_str())
         };
+        let overrides = ModelLoadOverrides {
+            model_name: name,
+            output_tensor: output_override,
+            max_length: max_length_override,
+            padding: padding_override,
+            execution_providers: execution_providers_override,
+        };
         let embedder = Embedder::from_dir(
             &dir_path,
             num_threads,
             optimization_level,
-            name,
-            output_override,
-            max_length_override,
-            padding_override,
-            execution_providers_override,
+            overrides,
         )
         .map_err(magnus::Error::from)?;
         Ok(RbEmbedder {
@@ -266,15 +270,18 @@ impl RbReranker {
         } else {
             Some(padding.as_str())
         };
+        let overrides = ModelLoadOverrides {
+            model_name: name,
+            output_tensor: output_override,
+            max_length: max_length_override,
+            padding: padding_override,
+            execution_providers: execution_providers_override,
+        };
         let reranker = Reranker::from_dir(
             &dir_path,
             num_threads,
             optimization_level,
-            name,
-            output_override,
-            max_length_override,
-            padding_override,
-            execution_providers_override,
+            overrides,
         )
         .map_err(magnus::Error::from)?;
         Ok(RbReranker {
