@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'onnxruntime'
+require 'tokenizers'
 
 RSpec.describe 'Integration' do
   SINGLE_BATCH_MIN_COSINE = 0.995
@@ -138,6 +140,22 @@ RSpec.describe 'Integration' do
       expect(cosine_similarity(a, b)).to be >= 0.99999
       expect(max_abs_diff(a, b)).to be <= 1e-5
     end
+
+    it 'accepts explicit padding mode overrides' do
+      auto = GTE.config(GTE_E5_DIR) { |config| config.with(padding: 'auto') }
+      fixed = GTE.config(GTE_E5_DIR) { |config| config.with(padding: 'fixed', max_length: 8) }
+      batch_longest = GTE.config(GTE_E5_DIR) { |config| config.with(padding: 'batch_longest') }
+
+      expect(auto.embed('padding mode test').dim).to eq(GTE_EMBEDDING_DIM)
+      expect(fixed.embed('padding mode test').dim).to eq(GTE_EMBEDDING_DIM)
+      expect(batch_longest.embed('padding mode test').dim).to eq(GTE_EMBEDDING_DIM)
+    end
+
+    it 'fails fast on invalid padding mode override' do
+      expect do
+        GTE.config(GTE_E5_DIR) { |config| config.with(padding: 'unknown') }
+      end.to raise_error(GTE::Error, /padding mode.*auto, batch_longest, fixed/i)
+    end
   end
 
   context 'CLIP', if: GTE_CLIP_AVAILABLE do
@@ -161,6 +179,19 @@ RSpec.describe 'Integration' do
 
   context 'Siglip2', if: GTE_SIGLIP2_AVAILABLE do
     let(:model) { GTE.config(GTE_SIGLIP2_DIR) }
+    let(:siglip2_pooler) do
+      GTE.config(GTE_SIGLIP2_DIR) { |config| config.with(normalize: false, output_tensor: 'pooler_output') }
+    end
+
+    def direct_siglip2_pooler_output(text, fixed_padding:)
+      tokenizer = Tokenizers.from_file(File.join(GTE_SIGLIP2_DIR, 'tokenizer.json'))
+      tokenizer.no_padding unless fixed_padding
+
+      encoding = tokenizer.encode_batch([text]).first
+      input_ids = [encoding.ids]
+      model = OnnxRuntime::Model.new(File.join(GTE_SIGLIP2_DIR, 'onnx', 'text_model.onnx'))
+      model.predict({ input_ids: input_ids }, output_names: ['pooler_output']).fetch('pooler_output').first
+    end
 
     it 'batch embedding returns correct dimensions' do
       texts = ['a photo of a cat', 'a photo of a dog']
@@ -173,6 +204,23 @@ RSpec.describe 'Integration' do
       result = model.embed('test normalization').row(0)
       norm = Math.sqrt(result.sum { |v| v * v })
       expect(norm).to be_within(1e-3).of(1.0)
+    end
+
+    it 'matches fixed-length pooler preprocessing used by Siglip2 text tokenization' do
+      text = 'hello'
+      gte = siglip2_pooler.embed(text).row(0)
+      fixed = direct_siglip2_pooler_output(text, fixed_padding: true)
+      unpadded = direct_siglip2_pooler_output(text, fixed_padding: false)
+
+      expect(cosine_similarity(gte, fixed)).to be >= 0.999
+      expect(cosine_similarity(gte, unpadded)).to be < 0.95
+    end
+
+    it 'does not fail on long text inputs' do
+      text = ('sharedprefix ' * 240).strip
+      result = model.embed(text)
+      expect(result.rows).to eq(1)
+      expect(result.dim).to eq(GTE_SIGLIP2_EMBEDDING_DIM)
     end
   end
 

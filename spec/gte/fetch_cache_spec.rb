@@ -56,6 +56,12 @@ RSpec.describe 'GTE model cache', if: GTE_E5_AVAILABLE do
     expect(a.object_id).not_to eq(b.object_id)
   end
 
+  it 'uses independent cache entries when padding differs' do
+    auto = build_model(dir, padding: 'auto')
+    fixed = build_model(dir, padding: 'fixed')
+    expect(auto.object_id).not_to eq(fixed.object_id)
+  end
+
   it 'uses independent cache entries when execution_providers differs' do
     cpu = build_model(dir, execution_providers: 'cpu')
     xnnpack = build_model(dir, execution_providers: 'xnnpack')

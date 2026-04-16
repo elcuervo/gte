@@ -44,7 +44,9 @@ module PureRubyTextEmbedding
         raise Error, 'mean pooling requires attention_mask input'
       end
 
-      @max_length = read_max_length
+      tokenizer_profile = read_tokenizer_profile
+      @max_length = tokenizer_profile.fetch(:default_max_length)
+      @fixed_padding_length = tokenizer_profile.fetch(:fixed_padding_length)
       @tokenizer = Tokenizers.from_file(@tokenizer_path)
       @tokenizer.no_padding
       @tokenizer.no_truncation
@@ -115,26 +117,51 @@ module PureRubyTextEmbedding
       output.fetch(:shape).length
     end
 
-    def read_max_length
+    def read_tokenizer_profile
       config_path = File.join(@model_dir, 'tokenizer_config.json')
-      return DEFAULT_MAX_LENGTH unless File.exist?(config_path)
+      tokenizer_json_path = File.join(@model_dir, 'tokenizer.json')
+      tokenizer_config = File.exist?(config_path) ? JSON.parse(File.read(config_path)) : {}
+      tokenizer_json = File.exist?(tokenizer_json_path) ? JSON.parse(File.read(tokenizer_json_path)) : {}
 
-      value = JSON.parse(File.read(config_path))['model_max_length']
+      candidates = []
+      candidates << parse_positive_length(tokenizer_config['max_length'])
+      candidates << parse_positive_length(tokenizer_config['model_max_length'])
+      fixed_padding = parse_positive_length(tokenizer_json.dig('padding', 'strategy', 'Fixed'))
+      candidates << parse_positive_length(tokenizer_json.dig('truncation', 'max_length'))
+      candidates << fixed_padding
+      candidates.compact!
+      capped = candidates.map { |value| [value, MAX_SUPPORTED_LENGTH].min }
+      default_max = capped.min || DEFAULT_MAX_LENGTH
+      safe_max = fixed_padding || default_max
+
+      {
+        default_max_length: [default_max, safe_max].min,
+        fixed_padding_length: fixed_padding
+      }
+    rescue JSON::ParserError, TypeError
+      {
+        default_max_length: DEFAULT_MAX_LENGTH,
+        fixed_padding_length: nil
+      }
+    end
+
+    def parse_positive_length(value)
       parsed = case value
                when Integer then value
                when Float then value.to_i
                when String then Integer(value, exception: false)
                end
+      return nil unless parsed&.positive?
 
-      return DEFAULT_MAX_LENGTH unless parsed&.positive?
-
-      [parsed, MAX_SUPPORTED_LENGTH].min
-    rescue JSON::ParserError
-      DEFAULT_MAX_LENGTH
+      parsed
     end
 
     def build_feeds(encodings)
-      max_len = [encodings.map { |encoding| encoding.ids.length }.max || 0, @max_length].min
+      max_len = if @fixed_padding_length
+                  [@max_length, @fixed_padding_length].min
+                else
+                  [encodings.map { |encoding| encoding.ids.length }.max || 0, @max_length].min
+                end
       input_ids = encodings.map { |encoding| pad_to_max(encoding.ids, max_len) }
       feeds = { input_ids: input_ids }
 

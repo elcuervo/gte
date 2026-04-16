@@ -1,12 +1,12 @@
 use crate::error::{GteError, Result};
-use crate::model_config::{ExtractorMode, ModelConfig};
+use crate::model_config::{ExtractorMode, ModelConfig, PaddingMode};
 use crate::model_profile::{
-    has_input, infer_extraction_mode, read_max_length, resolve_default_text_model, resolve_named_model,
-    resolve_tokenizer_path, select_output_tensor, validate_supported_text_inputs,
+    has_input, infer_extraction_mode, read_tokenizer_profile, resolve_default_text_model,
+    resolve_named_model, resolve_tokenizer_path, select_output_tensor, validate_supported_text_inputs,
 };
 use crate::postprocess::normalize_l2 as normalize_l2_rows;
 use crate::session::{build_session, run_session};
-use crate::tokenizer::{Tokenized, Tokenizer};
+use crate::tokenizer::{parse_padding_mode_override, Tokenized, Tokenizer};
 use ndarray::Array2;
 use ort::session::Session;
 use std::path::Path;
@@ -23,7 +23,13 @@ impl Embedder {
         P1: AsRef<Path>,
         P2: AsRef<Path>,
     {
-        let tokenizer = Tokenizer::new(tokenizer_path, config.max_length, config.with_type_ids)?;
+        let tokenizer = Tokenizer::new(
+            tokenizer_path,
+            config.max_length,
+            config.with_type_ids,
+            config.padding_mode,
+            None,
+        )?;
         let session = build_session(model_path, &config)?;
         Ok(Self {
             tokenizer,
@@ -32,6 +38,7 @@ impl Embedder {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn from_dir<P: AsRef<Path>>(
         dir: P,
         num_threads: usize,
@@ -39,6 +46,7 @@ impl Embedder {
         model_name: Option<&str>,
         output_tensor_override: Option<&str>,
         max_length_override: Option<usize>,
+        padding_override: Option<&str>,
         execution_providers_override: Option<&str>,
     ) -> Result<Self> {
         const PREFERRED_EMBEDDING_OUTPUTS: [&str; 4] = [
@@ -55,19 +63,22 @@ impl Embedder {
             None => resolve_default_text_model(dir)?,
         };
 
+        let tokenizer_profile = read_tokenizer_profile(dir);
         let max_length = if let Some(override_value) = max_length_override {
             if override_value == 0 {
                 return Err(GteError::Inference(
                     "max_length override must be greater than 0".to_string(),
                 ));
             }
-            override_value
+            override_value.min(tokenizer_profile.safe_max_length)
         } else {
-            read_max_length(dir)
+            tokenizer_profile.default_max_length
         };
+        let padding_mode = parse_padding_mode_override(padding_override)?.unwrap_or(PaddingMode::Auto);
 
         let session_config = ModelConfig {
             max_length,
+            padding_mode,
             output_tensor: String::new(),
             mode: ExtractorMode::Raw,
             with_type_ids: false,
@@ -92,6 +103,7 @@ impl Embedder {
 
         let config = ModelConfig {
             max_length,
+            padding_mode,
             output_tensor,
             mode,
             with_type_ids,
@@ -101,7 +113,13 @@ impl Embedder {
             execution_providers: execution_providers_override.map(str::to_string),
         };
 
-        let tokenizer = Tokenizer::new(&tokenizer_path, config.max_length, config.with_type_ids)?;
+        let tokenizer = Tokenizer::new(
+            &tokenizer_path,
+            config.max_length,
+            config.with_type_ids,
+            config.padding_mode,
+            tokenizer_profile.fixed_padding_length,
+        )?;
 
         Ok(Self {
             tokenizer,

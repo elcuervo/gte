@@ -18,6 +18,7 @@ module GTE
           config.normalize,
           config.output_tensor.to_s,
           config.max_length || 0,
+          config.padding.to_s,
           config.execution_providers.to_s
         )
       end
@@ -33,6 +34,7 @@ module GTE
           normalize: true,
           output_tensor: nil,
           max_length: nil,
+          padding: nil,
           execution_providers: nil
         )
       end

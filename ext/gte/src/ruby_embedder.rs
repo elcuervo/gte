@@ -171,6 +171,7 @@ impl RbEmbedder {
         normalize: bool,
         output_tensor: String,
         max_length: usize,
+        padding: String,
         execution_providers: String,
     ) -> Result<Self, Error> {
         let name = if model_name.is_empty() {
@@ -193,6 +194,11 @@ impl RbEmbedder {
         } else {
             Some(execution_providers.as_str())
         };
+        let padding_override = if padding.is_empty() {
+            None
+        } else {
+            Some(padding.as_str())
+        };
         let embedder = Embedder::from_dir(
             &dir_path,
             num_threads,
@@ -200,6 +206,7 @@ impl RbEmbedder {
             name,
             output_override,
             max_length_override,
+            padding_override,
             execution_providers_override,
         )
         .map_err(magnus::Error::from)?;
@@ -231,6 +238,7 @@ impl RbReranker {
         sigmoid: bool,
         output_tensor: String,
         max_length: usize,
+        padding: String,
         execution_providers: String,
     ) -> Result<Self, Error> {
         let name = if model_name.is_empty() {
@@ -253,6 +261,11 @@ impl RbReranker {
         } else {
             Some(execution_providers.as_str())
         };
+        let padding_override = if padding.is_empty() {
+            None
+        } else {
+            Some(padding.as_str())
+        };
         let reranker = Reranker::from_dir(
             &dir_path,
             num_threads,
@@ -260,6 +273,7 @@ impl RbReranker {
             name,
             output_override,
             max_length_override,
+            padding_override,
             execution_providers_override,
         )
         .map_err(magnus::Error::from)?;
@@ -376,12 +390,12 @@ impl RbTensor {
 pub fn register(ruby: &Ruby) -> Result<(), Error> {
     let module = ruby.define_module("GTE")?;
     let embedder_class = module.define_class("Embedder", ruby.class_object())?;
-    embedder_class.define_singleton_method("new", function!(RbEmbedder::rb_new, 8))?;
+    embedder_class.define_singleton_method("new", function!(RbEmbedder::rb_new, 9))?;
     embedder_class.define_method("embed", method!(RbEmbedder::rb_embed, 1))?;
     embedder_class.define_method("embed_one", method!(RbEmbedder::rb_embed_one, 1))?;
 
     let reranker_class = module.define_class("Reranker", ruby.class_object())?;
-    reranker_class.define_singleton_method("new", function!(RbReranker::rb_new, 8))?;
+    reranker_class.define_singleton_method("new", function!(RbReranker::rb_new, 9))?;
     reranker_class.define_method("score", method!(RbReranker::rb_score, 2))?;
 
     let tensor_class = module.define_class("Tensor", ruby.class_object())?;

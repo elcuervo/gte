@@ -1,3 +1,4 @@
+use gte::model_config::PaddingMode;
 use gte::tokenizer::Tokenizer;
 
 #[test]
@@ -8,7 +9,8 @@ fn test_e5_tokenizer_output_shape() {
         "/tests/fixtures/e5/tokenizer.json"
     );
 
-    let tokenizer = Tokenizer::new(TOKENIZER, 512, true).expect("tokenizer should load");
+    let tokenizer = Tokenizer::new(TOKENIZER, 512, true, PaddingMode::BatchLongest, None)
+        .expect("tokenizer should load");
     let texts = vec![
         "Hello, world!".to_string(),
         "A second, longer sentence to test padding behavior.".to_string(),
@@ -33,7 +35,8 @@ fn test_e5_truncation_at_max_length() {
         "/tests/fixtures/e5/tokenizer.json"
     );
 
-    let tokenizer = Tokenizer::new(TOKENIZER, 16, false).expect("tokenizer should load");
+    let tokenizer = Tokenizer::new(TOKENIZER, 16, false, PaddingMode::BatchLongest, None)
+        .expect("tokenizer should load");
     let long_text = "word ".repeat(200);
     let tokenized = tokenizer
         .tokenize(&[long_text])

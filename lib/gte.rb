@@ -27,6 +27,7 @@ module GTE
         normalize: true,
         output_tensor: nil,
         max_length: nil,
+        padding: nil,
         execution_providers: nil
       )
 

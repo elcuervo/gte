@@ -5,9 +5,18 @@ pub enum ExtractorMode {
     Raw,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PaddingMode {
+    #[default]
+    Auto,
+    BatchLongest,
+    Fixed,
+}
+
 #[derive(Debug, Clone)]
 pub struct ModelConfig {
     pub max_length: usize,
+    pub padding_mode: PaddingMode,
     pub output_tensor: String,
     pub mode: ExtractorMode,
     pub with_type_ids: bool,

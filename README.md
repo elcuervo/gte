@@ -41,6 +41,7 @@ custom = GTE.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
   config.with(
     output_tensor: "last_hidden_state",
     max_length: 256,
+    padding: "batch_longest",
     optimization_level: 3
   )
 end
@@ -55,6 +56,7 @@ Config fields and defaults:
 - `normalize`: `true` (L2 normalization at Ruby-facing API)
 - `output_tensor`: `nil` (auto-select output tensor)
 - `max_length`: `nil` (uses tokenizer/model defaults)
+- `padding`: `nil` (auto; accepts `auto`, `batch_longest`, `fixed`)
 - `execution_providers`: `nil` (falls back to `GTE_EXECUTION_PROVIDERS` / CPU default)
 
 Notes:
@@ -106,6 +108,7 @@ Reranker config fields and defaults:
 - `sigmoid`: `false` (set `true` if you want bounded [0,1] style scores)
 - `output_tensor`: `nil`
 - `max_length`: `nil`
+- `padding`: `nil` (auto; accepts `auto`, `batch_longest`, `fixed`)
 - `execution_providers`: `nil`
 
 ## Runtime + Result Examples
