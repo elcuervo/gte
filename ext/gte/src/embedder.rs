@@ -5,15 +5,14 @@ use crate::model_profile::{
     resolve_named_model, resolve_tokenizer_path, select_output_tensor, validate_supported_text_inputs,
 };
 use crate::postprocess::normalize_l2 as normalize_l2_rows;
-use crate::session::{build_session, run_session};
+use crate::session::{build_session, run_session, SessionPool};
 use crate::tokenizer::{parse_padding_mode_override, Tokenized, Tokenizer};
 use ndarray::Array2;
-use ort::session::Session;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub struct Embedder {
     tokenizer: Tokenizer,
-    session: Session,
+    pool: SessionPool,
     config: ModelConfig,
 }
 
@@ -30,12 +29,10 @@ impl Embedder {
             config.padding_mode,
             None,
         )?;
-        let session = build_session(model_path, &config)?;
-        Ok(Self {
-            tokenizer,
-            session,
-            config,
-        })
+        let model_path = model_path.as_ref().to_path_buf();
+        let session = build_session(&model_path, &config)?;
+        let pool = SessionPool::new(session, model_path, config.clone());
+        Ok(Self { tokenizer, pool, config })
     }
 
     pub fn from_dir<P: AsRef<Path>>(
@@ -53,7 +50,7 @@ impl Embedder {
 
         let dir = dir.as_ref();
         let tokenizer_path = resolve_tokenizer_path(dir)?;
-        let model_path = match overrides.model_name.filter(|s| !s.is_empty()) {
+        let model_path: PathBuf = match overrides.model_name.filter(|s| !s.is_empty()) {
             Some(name) => resolve_named_model(dir, name)?,
             None => resolve_default_text_model(dir)?,
         };
@@ -117,11 +114,8 @@ impl Embedder {
             tokenizer_profile.fixed_padding_length,
         )?;
 
-        Ok(Self {
-            tokenizer,
-            session,
-            config,
-        })
+        let pool = SessionPool::new(session, model_path, session_config);
+        Ok(Self { tokenizer, pool, config })
     }
 
     pub fn embed(&self, texts: Vec<String>) -> Result<Array2<f32>> {
@@ -134,7 +128,8 @@ impl Embedder {
     }
 
     pub fn run(&self, tokenized: &Tokenized) -> crate::error::Result<Array2<f32>> {
-        run_session(&self.session, tokenized, &self.config)
+        let mut session = self.pool.acquire()?;
+        run_session(&mut session, tokenized, &self.config)
     }
 }
 

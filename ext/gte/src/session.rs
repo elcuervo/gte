@@ -8,7 +8,9 @@ use ort::execution_providers::{
     CoreMLExecutionProvider, ExecutionProviderDispatch, XNNPACKExecutionProvider,
 };
 use ort::session::Session;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Condvar, Mutex};
 
 pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Result<Session> {
     let opt_level = match config.optimization_level {
@@ -18,21 +20,119 @@ pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Res
         _ => ort::session::builder::GraphOptimizationLevel::Level3,
     };
 
-    let mut builder = Session::builder()?
-        .with_optimization_level(opt_level)?
-        .with_memory_pattern(true)?;
+    fn ort_err(e: impl std::fmt::Display) -> GteError { GteError::Ort(e.to_string()) }
+
+    let mut builder = Session::builder().map_err(ort_err)?
+        .with_optimization_level(opt_level).map_err(ort_err)?
+        .with_memory_pattern(true).map_err(ort_err)?;
 
     let providers = preferred_execution_providers(config.execution_providers.as_deref());
     if !providers.is_empty() {
-        builder = builder.with_execution_providers(providers)?;
+        builder = builder.with_execution_providers(providers).map_err(ort_err)?;
     }
 
     if config.num_threads > 0 {
-        builder = builder.with_intra_threads(config.num_threads)?;
+        builder = builder.with_intra_threads(config.num_threads).map_err(ort_err)?;
+        builder = builder.with_inter_threads(config.num_threads).map_err(ort_err)?;
     }
 
-    Ok(builder.commit_from_file(model_path)?)
+    builder.commit_from_file(model_path).map_err(ort_err)
 }
+
+// ---------------------------------------------------------------------------
+// Session pool
+// ---------------------------------------------------------------------------
+
+/// How many sessions to keep: one per physical core / num_threads, capped at
+/// available parallelism. When `num_threads == 0` (ORT auto-thread mode) a
+/// single session already saturates all cores, so capacity is 1.
+fn pool_capacity(num_threads: usize) -> usize {
+    if num_threads == 0 {
+        return 1;
+    }
+    std::thread::available_parallelism()
+        .map(|n| ((n.get() + num_threads - 1) / num_threads).max(6))
+        .unwrap_or(6)
+}
+
+pub struct SessionPool {
+    sessions: Mutex<Vec<Session>>,
+    available: Condvar,
+    created: AtomicUsize,
+    capacity: usize,
+    model_path: PathBuf,
+    build_config: ModelConfig,
+}
+
+impl SessionPool {
+    pub fn new(initial: Session, model_path: PathBuf, build_config: ModelConfig) -> Self {
+        let capacity = pool_capacity(build_config.num_threads);
+        Self {
+            sessions: Mutex::new(vec![initial]),
+            available: Condvar::new(),
+            created: AtomicUsize::new(1),
+            capacity,
+            model_path,
+            build_config,
+        }
+    }
+
+    pub fn acquire(&self) -> Result<PooledSession<'_>> {
+        loop {
+            // Fast path: grab from pool.
+            {
+                let mut lock = self.sessions.lock().unwrap();
+                if let Some(session) = lock.pop() {
+                    return Ok(PooledSession { pool: self, session: Some(session) });
+                }
+            }
+
+            // Slow path: try to grow up to capacity.
+            let grew = self.created.fetch_update(
+                Ordering::AcqRel,
+                Ordering::Acquire,
+                |n| if n < self.capacity { Some(n + 1) } else { None },
+            );
+            if grew.is_ok() {
+                let session = build_session(&self.model_path, &self.build_config)?;
+                return Ok(PooledSession { pool: self, session: Some(session) });
+            }
+
+            // Pool at capacity: block until one is returned.
+            let lock = self.sessions.lock().unwrap();
+            drop(self.available.wait(lock).unwrap());
+        }
+    }
+
+    fn release(&self, session: Session) {
+        self.sessions.lock().unwrap().push(session);
+        self.available.notify_one();
+    }
+}
+
+pub struct PooledSession<'a> {
+    pool: &'a SessionPool,
+    session: Option<Session>,
+}
+
+impl std::ops::Deref for PooledSession<'_> {
+    type Target = Session;
+    fn deref(&self) -> &Session { self.session.as_ref().unwrap() }
+}
+
+impl std::ops::DerefMut for PooledSession<'_> {
+    fn deref_mut(&mut self) -> &mut Session { self.session.as_mut().unwrap() }
+}
+
+impl Drop for PooledSession<'_> {
+    fn drop(&mut self) {
+        if let Some(s) = self.session.take() {
+            self.pool.release(s);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 
 fn preferred_execution_providers(order_override: Option<&str>) -> Vec<ExecutionProviderDispatch> {
     let order = resolve_provider_order(order_override);
@@ -75,12 +175,12 @@ fn parse_provider_registrations(order: &str) -> Vec<&str> {
 }
 
 pub fn run_session(
-    session: &Session,
+    session: &mut Session,
     tokenized: &Tokenized,
     config: &ModelConfig,
 ) -> Result<Array2<f32>> {
     let input_tensors = InputTensors::from_tokenized(tokenized, config.with_attention_mask)?;
-    let outputs = session.run(input_tensors.inputs)?;
+    let outputs = session.run(input_tensors.inputs).map_err(|e| GteError::Ort(e.to_string()))?;
     let array = extract_output_tensor(&outputs, config.output_tensor.as_str())?;
 
     match config.mode {
@@ -104,7 +204,7 @@ pub fn run_session(
             })?;
             mean_pool(hidden_states.view(), input_tensors.attention_mask)
         }
-        ExtractorMode::Raw => Ok(array.into_dimensionality::<Ix2>()?.into_owned()),
+        ExtractorMode::Raw => array.into_dimensionality::<Ix2>().map_err(|e| GteError::Shape(e.to_string())),
     }
 }
 

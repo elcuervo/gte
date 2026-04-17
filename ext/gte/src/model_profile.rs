@@ -133,11 +133,9 @@ fn parse_fixed_padding_length_from_tokenizer_json(tokenizer_json: &Value) -> Opt
 }
 
 pub fn validate_supported_text_inputs(session: &Session, api_label: &str) -> Result<()> {
-    let unsupported: Vec<String> = session
-        .inputs
-        .iter()
-        .filter(|i| !SUPPORTED_INPUTS.contains(&i.name.as_str()))
-        .map(|i| i.name.clone())
+    let unsupported: Vec<String> = session.inputs().iter()
+        .filter(|i| !SUPPORTED_INPUTS.contains(&i.name()))
+        .map(|i| i.name().to_owned())
         .collect();
 
     if unsupported.is_empty() {
@@ -160,7 +158,7 @@ pub fn validate_supported_text_inputs(session: &Session, api_label: &str) -> Res
 }
 
 pub fn has_input(session: &Session, name: &str) -> bool {
-    session.inputs.iter().any(|input| input.name == name)
+    session.inputs().iter().any(|input| input.name() == name)
 }
 
 fn output_name_matches(name: &str, preferred: &str) -> bool {
@@ -175,16 +173,16 @@ pub fn select_output_tensor(
 ) -> Result<String> {
     if let Some(requested_name) = requested.map(str::trim).filter(|name| !name.is_empty()) {
         if let Some(output) = session
-            .outputs
+            .outputs()
             .iter()
-            .find(|o| output_name_matches(o.name.as_str(), requested_name))
+            .find(|o| output_name_matches(o.name(), requested_name))
         {
-            return Ok(output.name.clone());
+            return Ok(output.name().to_owned());
         }
         let available = session
-            .outputs
+            .outputs()
             .iter()
-            .map(|o| o.name.as_str())
+            .map(|o| o.name())
             .collect::<Vec<_>>()
             .join(", ");
         return Err(GteError::Inference(format!(
@@ -195,18 +193,18 @@ pub fn select_output_tensor(
 
     for preferred in preferred_outputs {
         if let Some(output) = session
-            .outputs
+            .outputs()
             .iter()
-            .find(|o| output_name_matches(o.name.as_str(), preferred))
+            .find(|o| output_name_matches(o.name(), preferred))
         {
-            return Ok(output.name.clone());
+            return Ok(output.name().to_owned());
         }
     }
 
     session
-        .outputs
+        .outputs()
         .first()
-        .map(|o| o.name.clone())
+        .map(|o| o.name().to_owned())
         .ok_or_else(|| GteError::Inference("model has no outputs".into()))
 }
 
@@ -216,9 +214,9 @@ fn output_basename(name: &str) -> &str {
 
 pub fn infer_extraction_mode(session: &Session, output_tensor: &str) -> Result<ExtractorMode> {
     let output = session
-        .outputs
+        .outputs()
         .iter()
-        .find(|o| o.name == output_tensor)
+        .find(|o| o.name() == output_tensor)
         .ok_or_else(|| {
             GteError::Inference(format!(
                 "output tensor '{}' not found in model outputs",
@@ -226,8 +224,8 @@ pub fn infer_extraction_mode(session: &Session, output_tensor: &str) -> Result<E
             ))
         })?;
 
-    let ndims = match &output.output_type {
-        ort::value::ValueType::Tensor { dimensions, .. } => dimensions.len(),
+    let ndims = match output.dtype() {
+        ort::value::ValueType::Tensor { shape, .. } => shape.len(),
         other => {
             return Err(GteError::Inference(format!(
                 "output is not a tensor: {:?}",

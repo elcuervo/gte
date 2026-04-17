@@ -21,7 +21,7 @@ module GTE
     def config(model_dir)
       cfg = Config::Text.new(
         model_dir: File.expand_path(model_dir),
-        threads: 3,
+        threads: 1,
         optimization_level: 3,
         model_name: nil,
         normalize: true,

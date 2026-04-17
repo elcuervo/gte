@@ -6,10 +6,9 @@ use crate::model_profile::{
 };
 use crate::pipeline::{extract_output_tensor, InputTensors};
 use crate::postprocess::sigmoid_scores;
-use crate::session::build_session;
+use crate::session::{build_session, SessionPool};
 use crate::tokenizer::{parse_padding_mode_override, Tokenizer};
-use ort::session::Session;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 struct RerankerConfig {
@@ -22,7 +21,7 @@ struct RerankerConfig {
 
 pub struct Reranker {
     tokenizer: Tokenizer,
-    session: Session,
+    pool: SessionPool,
     config: RerankerConfig,
 }
 
@@ -35,7 +34,7 @@ impl Reranker {
     ) -> Result<Self> {
         let dir = dir.as_ref();
         let tokenizer_path = resolve_tokenizer_path(dir)?;
-        let model_path = match overrides.model_name.filter(|s| !s.is_empty()) {
+        let model_path: PathBuf = match overrides.model_name.filter(|s| !s.is_empty()) {
             Some(name) => resolve_named_model(dir, name)?,
             None => resolve_default_text_model(dir)?,
         };
@@ -88,11 +87,8 @@ impl Reranker {
             tokenizer_profile.fixed_padding_length,
         )?;
 
-        Ok(Self {
-            tokenizer,
-            session,
-            config,
-        })
+        let pool = SessionPool::new(session, model_path, probe_config);
+        Ok(Self { tokenizer, pool, config })
     }
 
     pub fn score_pairs(&self, pairs: &[(String, String)], apply_sigmoid: bool) -> Result<Vec<f32>> {
@@ -111,7 +107,8 @@ impl Reranker {
         apply_sigmoid: bool,
     ) -> Result<Vec<f32>> {
         let input_tensors = InputTensors::from_tokenized(tokenized, self.config.with_attention_mask)?;
-        let outputs = self.session.run(input_tensors.inputs)?;
+        let mut session = self.pool.acquire()?;
+        let outputs = session.run(input_tensors.inputs).map_err(|e| GteError::Ort(e.to_string()))?;
         let array = extract_output_tensor(&outputs, self.config.output_tensor.as_str())?;
 
         let mut scores = match array.ndim() {

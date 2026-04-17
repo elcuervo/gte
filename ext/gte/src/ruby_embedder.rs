@@ -28,21 +28,24 @@ pub struct RbTensor {
     data: Vec<f32>,
 }
 
+// ---------------------------------------------------------------------------
+// GVL-release helpers
+// ---------------------------------------------------------------------------
+
 struct InferArgs {
     embedder: *const Embedder,
     texts: *const Vec<String>,
     normalize: bool,
-    result: Option<Result<ndarray::Array2<f32>, GteError>>,
+    result: Option<crate::error::Result<ndarray::Array2<f32>>>,
 }
 
 unsafe impl Send for InferArgs {}
 
 struct ScoreArgs {
     reranker: *const Reranker,
-    query: *const String,
-    candidates: *const Vec<String>,
+    pairs: *const Vec<(String, String)>,
     apply_sigmoid: bool,
-    result: Option<Result<Vec<f32>, GteError>>,
+    result: Option<crate::error::Result<Vec<f32>>>,
 }
 
 unsafe impl Send for ScoreArgs {}
@@ -55,6 +58,38 @@ fn panic_payload_to_string(payload: Box<dyn std::any::Any + Send>) -> String {
     } else {
         "unknown panic payload".to_string()
     }
+}
+
+unsafe extern "C" fn run_without_gvl(ptr: *mut c_void) -> *mut c_void {
+    let args = &mut *(ptr as *mut InferArgs);
+    let run_result = catch_unwind(AssertUnwindSafe(|| {
+        let tokenized = (*args.embedder).tokenize(&*args.texts)?;
+        let embeddings = (*args.embedder).run(&tokenized)?;
+        if args.normalize { Ok(normalize_l2(embeddings)) } else { Ok(embeddings) }
+    }));
+    args.result = Some(match run_result {
+        Ok(result) => result,
+        Err(payload) => Err(GteError::Inference(format!(
+            "panic during inference: {}",
+            panic_payload_to_string(payload),
+        ))),
+    });
+    std::ptr::null_mut()
+}
+
+unsafe extern "C" fn run_score_without_gvl(ptr: *mut c_void) -> *mut c_void {
+    let args = &mut *(ptr as *mut ScoreArgs);
+    let run_result = catch_unwind(AssertUnwindSafe(|| {
+        (*args.reranker).score_pairs(&*args.pairs, args.apply_sigmoid)
+    }));
+    args.result = Some(match run_result {
+        Ok(result) => result,
+        Err(payload) => Err(GteError::Inference(format!(
+            "panic during reranking: {}",
+            panic_payload_to_string(payload),
+        ))),
+    });
+    std::ptr::null_mut()
 }
 
 fn infer_without_gvl(
@@ -87,15 +122,13 @@ fn infer_without_gvl(
 
 fn score_without_gvl(
     reranker: &Arc<Reranker>,
-    query: String,
-    candidates: Vec<String>,
+    pairs: Vec<(String, String)>,
     apply_sigmoid: bool,
 ) -> Result<Vec<f32>, Error> {
     let scores = unsafe {
         let mut args = ScoreArgs {
             reranker: Arc::as_ptr(reranker),
-            query: &query as *const String,
-            candidates: &candidates as *const Vec<String>,
+            pairs: &pairs as *const Vec<(String, String)>,
             apply_sigmoid,
             result: None,
         };
@@ -115,41 +148,7 @@ fn score_without_gvl(
     Ok(scores)
 }
 
-unsafe extern "C" fn run_without_gvl(ptr: *mut c_void) -> *mut c_void {
-    let args = &mut *(ptr as *mut InferArgs);
-    let run_result = catch_unwind(AssertUnwindSafe(|| {
-        let tokenized = (*args.embedder).tokenize(&*args.texts)?;
-        let embeddings = (*args.embedder).run(&tokenized)?;
-        if args.normalize {
-            Ok(normalize_l2(embeddings))
-        } else {
-            Ok(embeddings)
-        }
-    }));
-    args.result = Some(match run_result {
-        Ok(result) => result,
-        Err(payload) => Err(GteError::Inference(format!(
-            "panic during inference: {}",
-            panic_payload_to_string(payload),
-        ))),
-    });
-    std::ptr::null_mut()
-}
-
-unsafe extern "C" fn run_score_without_gvl(ptr: *mut c_void) -> *mut c_void {
-    let args = &mut *(ptr as *mut ScoreArgs);
-    let run_result = catch_unwind(AssertUnwindSafe(|| {
-        (*args.reranker).score(&*args.query, &*args.candidates, args.apply_sigmoid)
-    }));
-    args.result = Some(match run_result {
-        Ok(result) => result,
-        Err(payload) => Err(GteError::Inference(format!(
-            "panic during reranking: {}",
-            panic_payload_to_string(payload),
-        ))),
-    });
-    std::ptr::null_mut()
-}
+// ---------------------------------------------------------------------------
 
 fn tensor_from_array(embeddings: ndarray::Array2<f32>) -> Result<RbTensor, Error> {
     let rows = embeddings.nrows();
@@ -177,31 +176,11 @@ impl RbEmbedder {
         padding: String,
         execution_providers: String,
     ) -> Result<Self, Error> {
-        let name = if model_name.is_empty() {
-            None
-        } else {
-            Some(model_name.as_str())
-        };
-        let output_override = if output_tensor.is_empty() {
-            None
-        } else {
-            Some(output_tensor.as_str())
-        };
-        let max_length_override = if max_length == 0 {
-            None
-        } else {
-            Some(max_length)
-        };
-        let execution_providers_override = if execution_providers.is_empty() {
-            None
-        } else {
-            Some(execution_providers.as_str())
-        };
-        let padding_override = if padding.is_empty() {
-            None
-        } else {
-            Some(padding.as_str())
-        };
+        let name = if model_name.is_empty() { None } else { Some(model_name.as_str()) };
+        let output_override = if output_tensor.is_empty() { None } else { Some(output_tensor.as_str()) };
+        let max_length_override = if max_length == 0 { None } else { Some(max_length) };
+        let execution_providers_override = if execution_providers.is_empty() { None } else { Some(execution_providers.as_str()) };
+        let padding_override = if padding.is_empty() { None } else { Some(padding.as_str()) };
         let overrides = ModelLoadOverrides {
             model_name: name,
             output_tensor: output_override,
@@ -209,17 +188,9 @@ impl RbEmbedder {
             padding: padding_override,
             execution_providers: execution_providers_override,
         };
-        let embedder = Embedder::from_dir(
-            &dir_path,
-            num_threads,
-            optimization_level,
-            overrides,
-        )
-        .map_err(magnus::Error::from)?;
-        Ok(RbEmbedder {
-            inner: Arc::new(embedder),
-            normalize,
-        })
+        let embedder = Embedder::from_dir(&dir_path, num_threads, optimization_level, overrides)
+            .map_err(magnus::Error::from)?;
+        Ok(RbEmbedder { inner: Arc::new(embedder), normalize })
     }
 
     pub fn rb_embed(_ruby: &Ruby, rb_self: &Self, texts: RArray) -> Result<RbTensor, Error> {
@@ -247,31 +218,11 @@ impl RbReranker {
         padding: String,
         execution_providers: String,
     ) -> Result<Self, Error> {
-        let name = if model_name.is_empty() {
-            None
-        } else {
-            Some(model_name.as_str())
-        };
-        let output_override = if output_tensor.is_empty() {
-            None
-        } else {
-            Some(output_tensor.as_str())
-        };
-        let max_length_override = if max_length == 0 {
-            None
-        } else {
-            Some(max_length)
-        };
-        let execution_providers_override = if execution_providers.is_empty() {
-            None
-        } else {
-            Some(execution_providers.as_str())
-        };
-        let padding_override = if padding.is_empty() {
-            None
-        } else {
-            Some(padding.as_str())
-        };
+        let name = if model_name.is_empty() { None } else { Some(model_name.as_str()) };
+        let output_override = if output_tensor.is_empty() { None } else { Some(output_tensor.as_str()) };
+        let max_length_override = if max_length == 0 { None } else { Some(max_length) };
+        let execution_providers_override = if execution_providers.is_empty() { None } else { Some(execution_providers.as_str()) };
+        let padding_override = if padding.is_empty() { None } else { Some(padding.as_str()) };
         let overrides = ModelLoadOverrides {
             model_name: name,
             output_tensor: output_override,
@@ -279,17 +230,9 @@ impl RbReranker {
             padding: padding_override,
             execution_providers: execution_providers_override,
         };
-        let reranker = Reranker::from_dir(
-            &dir_path,
-            num_threads,
-            optimization_level,
-            overrides,
-        )
-        .map_err(magnus::Error::from)?;
-        Ok(RbReranker {
-            inner: Arc::new(reranker),
-            sigmoid,
-        })
+        let reranker = Reranker::from_dir(&dir_path, num_threads, optimization_level, overrides)
+            .map_err(magnus::Error::from)?;
+        Ok(RbReranker { inner: Arc::new(reranker), sigmoid })
     }
 
     pub fn rb_score(
@@ -299,8 +242,8 @@ impl RbReranker {
         candidates: RArray,
     ) -> Result<RArray, Error> {
         let candidates: Vec<String> = candidates.to_vec()?;
-        let scores = score_without_gvl(&rb_self.inner, query, candidates, rb_self.sigmoid)?;
-
+        let pairs: Vec<(String, String)> = candidates.into_iter().map(|c| (query.clone(), c)).collect();
+        let scores = score_without_gvl(&rb_self.inner, pairs, rb_self.sigmoid)?;
         let out = ruby.ary_new_capa(scores.len());
         for score in scores {
             out.push(score)?;
@@ -336,7 +279,6 @@ impl RbTensor {
                 index, rb_self.rows
             ))));
         }
-
         let start = index * rb_self.cols;
         let end = start + rb_self.cols;
         let out = ruby.ary_new_capa(rb_self.cols);
@@ -361,7 +303,6 @@ impl RbTensor {
                 index, rb_self.rows
             ))));
         }
-
         let start = index * rb_self.cols;
         let end = start + rb_self.cols;
         let bytes = unsafe {

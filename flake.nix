@@ -22,7 +22,6 @@
             jq
             ripgrep
             hyperfine
-            onnxruntime
             pkg-config
             llvmPackages.libclang
             clang
@@ -30,10 +29,6 @@
 
           shellHook = ''
             export LIBCLANG_PATH=${pkgs.llvmPackages.libclang.lib}/lib
-            export ORT_STRATEGY=system
-            export ORT_LIB_LOCATION=${pkgs.onnxruntime}
-            export ORT_DYLIB_PATH=${pkgs.onnxruntime}/lib/libonnxruntime.dylib
-            export DYLD_LIBRARY_PATH=${pkgs.onnxruntime}/lib''${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}
           '';
         };
       });

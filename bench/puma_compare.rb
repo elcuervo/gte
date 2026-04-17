@@ -359,7 +359,13 @@ begin
     end
 
     warmup_text = format(cfg.fetch('request_template'), idx: 'warmup')
-    (options[:concurrency] * 2).times do
+    # Concurrent warmup: pre-populate the GTE session pool and warm CPU caches
+    # before timed runs begin. Sequential warmup would only use 1 session slot.
+    warmup_requests = Array.new(options[:concurrency]) { warmup_text }
+    benchmark_concurrent(->(text) { gte_model.embed(text) }, warmup_requests, options[:concurrency])
+    benchmark_concurrent(->(text) { pure_model.embed(text) }, warmup_requests, options[:concurrency])
+    # Additional sequential passes for cache warming
+    (options[:concurrency] / 2).times do
       gte_model.embed(warmup_text)
       pure_model.embed(warmup_text)
     end
