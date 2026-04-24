@@ -14,7 +14,7 @@ spec = Gem::Specification.load('gte.gemspec')
 Rake::ExtensionTask.new('gte', spec) do |ext|
   ext.lib_dir = 'lib/gte'
   ext.cross_compile = true
-  ext.cross_platform = %w[x86_64-linux arm64-darwin]
+  ext.cross_platform = %w[x86_64-linux aarch64-linux arm64-darwin]
 end
 
 task default: %i[compile spec]

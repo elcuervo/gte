@@ -12,6 +12,7 @@ jobs:
       matrix:
         include:
           - platform: x86_64-linux
+          - platform: aarch64-linux
           - platform: arm64-darwin
 
     steps:
