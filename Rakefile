@@ -14,7 +14,13 @@ spec = Gem::Specification.load('gte.gemspec')
 Rake::ExtensionTask.new('gte', spec) do |ext|
   ext.lib_dir = 'lib/gte'
   ext.cross_compile = true
-  ext.cross_platform = %w[x86_64-linux aarch64-linux arm64-darwin]
+  # rb-sys-dock invokes `rake native:$RUBY_TARGET gem` without the `cross` task,
+  # so scope platforms during dock builds to avoid host-Ruby fallback copy tasks.
+  ext.cross_platform = if ENV['RUBY_TARGET'] && !ENV['RUBY_TARGET'].empty?
+    [ENV['RUBY_TARGET']]
+  else
+    %w[x86_64-linux aarch64-linux arm64-darwin]
+  end
 end
 
 task default: %i[compile spec]
