@@ -16,12 +16,11 @@ Rake::ExtensionTask.new('gte', spec) do |ext|
   ext.cross_compile = true
   # rb-sys-dock invokes `rake native:$RUBY_TARGET gem` without the `cross` task,
   # so scope platforms during dock builds to avoid host-Ruby fallback copy tasks.
-  cross_platforms = nil
-  if ENV['RUBY_TARGET'] && !ENV['RUBY_TARGET'].empty?
-    cross_platforms = [ENV['RUBY_TARGET']]
-  else
-    cross_platforms = %w[x86_64-linux aarch64-linux arm64-darwin]
-  end
+  cross_platforms = if ENV['RUBY_TARGET'] && !ENV['RUBY_TARGET'].empty?
+                      [ENV['RUBY_TARGET']]
+                    else
+                      %w[x86_64-linux aarch64-linux arm64-darwin]
+                    end
   ext.cross_platform = cross_platforms
 end
 
