@@ -10,18 +10,36 @@ rescue LoadError
 end
 
 spec = Gem::Specification.load('gte.gemspec')
+cross_target = ENV.fetch('RUBY_TARGET', nil)
 
-Rake::ExtensionTask.new('gte', spec) do |ext|
+if cross_target == 'arm64-darwin'
+  # rb-sys-dock's darwin image can expose an unusable default LIBRARY_PATH.
+  # Force the compiler-rt darwin runtime directory so -lclang_rt.osx resolves.
+  ENV['LIBRARY_PATH'] = '/usr/lib/llvm-10/lib/clang/10.0.0/lib/darwin'
+end
+
+extension_task = Rake::ExtensionTask.new('gte', spec) do |ext|
   ext.lib_dir = 'lib/gte'
   ext.cross_compile = true
   # rb-sys-dock invokes `rake native:$RUBY_TARGET gem` without the `cross` task,
   # so scope platforms during dock builds to avoid host-Ruby fallback copy tasks.
-  cross_platforms = if ENV['RUBY_TARGET'] && !ENV['RUBY_TARGET'].empty?
-                      [ENV['RUBY_TARGET']]
+  cross_platforms = if cross_target && !cross_target.empty?
+                      [cross_target]
                     else
                       %w[x86_64-linux aarch64-linux arm64-darwin]
                     end
   ext.cross_platform = cross_platforms
+end
+
+if cross_target && !cross_target.empty? && ENV['RUBY_CC_VERSION']
+  ruby_version = ENV['RUBY_CC_VERSION'].split(':').first
+  lib_binary_path = File.join(extension_task.lib_dir, File.basename(extension_task.binary(cross_target)))
+  copy_task = "copy:gte:#{cross_target}:#{ruby_version}"
+
+  if Rake::Task.task_defined?(lib_binary_path) && Rake::Task.task_defined?(copy_task)
+    Rake::Task[lib_binary_path].prerequisites.clear
+    Rake::Task[lib_binary_path].enhance([copy_task])
+  end
 end
 
 task default: %i[compile spec]

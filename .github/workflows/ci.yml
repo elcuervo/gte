@@ -71,11 +71,8 @@ jobs:
       matrix:
         include:
           - platform: x86_64-linux
-            rustflags: ""
           - platform: aarch64-linux
-            rustflags: ""
           - platform: arm64-darwin
-            rustflags: -L /usr/lib/llvm-10/lib/clang/10.0.0/lib/darwin
 
     steps:
       - uses: actions/checkout@v4
@@ -92,8 +89,6 @@ jobs:
 
       - uses: oxidize-rb/actions/cross-gem@v1
         id: cross-gem
-        env:
-          RUSTFLAGS: ${{ matrix.rustflags }}
         with:
           platform: ${{ matrix.platform }}
           ruby-versions: "3.3"
