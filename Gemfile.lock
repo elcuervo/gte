@@ -2,7 +2,7 @@ PATH
   remote: .
   specs:
     gte (0.0.8)
-      rb_sys
+      rb_sys (= 0.9.126)
 
 GEM
   remote: https://rubygems.org/
