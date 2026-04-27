@@ -14,7 +14,7 @@ DEFAULT_ITERATIONS = 80
 DEFAULT_CONCURRENCY = 16
 DEFAULT_RUN_SAMPLES = 3
 DEFAULT_THREADS = 'auto,1,2'
-DEFAULT_PROVIDERS = 'default;none;xnnpack,coreml'
+DEFAULT_PROVIDERS = 'cpu;xnnpack,coreml'
 MODELS = %w[e5 clip siglip2].freeze
 
 def default_output_path
@@ -40,15 +40,15 @@ def parse_provider_values(raw)
 end
 
 def model_stats(result, model)
-  result.fetch('models').fetch(model).fetch('puma_like')
+  result.fetch('models').fetch(model).fetch('scenarios').fetch('puma_like_single_request')
 end
 
 def model_p95(result, model)
-  model_stats(result, model).fetch('gte').fetch('aggregate').fetch('response_time').fetch('p95_ms')
+  model_stats(result, model).fetch('by_adapter').fetch('gte').fetch('aggregate').fetch('response_time').fetch('p95_ms')
 end
 
 def model_ratio(result, model)
-  model_stats(result, model).fetch('ratio_pure_over_gte').fetch('response_p95')
+  model_stats(result, model).fetch('gate').fetch('minimum_ratio_over_gte')
 end
 
 options = {
@@ -111,7 +111,7 @@ configs.each_with_index do |(provider, threads), idx|
     '--concurrency', options[:concurrency].to_s,
     '--runs', options[:run_samples].to_s
   ]
-  cmd += ['--exec-providers', provider] unless provider == 'default'
+  cmd += ['--exec-providers', provider] unless provider == 'cpu'
   cmd += ['--gte-threads', threads.to_s] unless threads == 'auto'
 
   puts "\n#{label}"
