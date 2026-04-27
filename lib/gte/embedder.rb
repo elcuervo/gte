@@ -2,7 +2,7 @@
 
 module GTE
   class Embedder
-    DEFAULT_THREADS = 0
+    DEFAULT_THREADS = 1
     DEFAULT_OPTIMIZATION_LEVEL = 3
 
     class << self

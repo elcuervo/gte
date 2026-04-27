@@ -558,7 +558,7 @@ module Bench
     class Gte
       attr_reader :profile
 
-      def initialize(profile: { 'threads' => 0, 'execution_providers' => 'cpu' })
+      def initialize(profile: { 'threads' => 1, 'execution_providers' => 'cpu' })
         @profile = profile
       end
 
@@ -585,7 +585,7 @@ module Bench
       def build(model_dir, profile_override = profile)
         model = GTE.config(model_dir) do |config|
           config.with(
-            threads: profile_override.fetch('threads', 0),
+            threads: profile_override.fetch('threads', 1),
             execution_providers: profile_override.fetch('execution_providers', 'cpu')
           )
         end

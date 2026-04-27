@@ -1,6 +1,6 @@
 use crate::error::{GteError, Result};
 use crate::tokenizer::Tokenized;
-use ndarray::ArrayView2;
+use ndarray::{ArrayView2, ArrayViewD};
 use ort::session::SessionInputValue;
 use ort::value::TensorRef;
 
@@ -49,12 +49,15 @@ impl<'a> InputTensors<'a> {
     }
 }
 
-pub fn extract_output_tensor(
-    outputs: &ort::session::SessionOutputs<'_>,
+pub fn extract_output_tensor<'a>(
+    outputs: &'a ort::session::SessionOutputs<'_>,
     output_name: &str,
-) -> Result<ndarray::ArrayD<f32>> {
+) -> Result<ArrayViewD<'a, f32>> {
     let tensor_value = outputs.get(output_name).ok_or_else(|| {
-        GteError::Inference(format!("output tensor '{}' not found in model outputs", output_name))
+        GteError::Inference(format!(
+            "output tensor '{}' not found in model outputs",
+            output_name
+        ))
     })?;
-    Ok(tensor_value.try_extract_array::<f32>()?.to_owned())
+    Ok(tensor_value.try_extract_array::<f32>()?)
 }

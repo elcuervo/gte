@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    gte (0.0.7)
+    gte (0.0.8)
       rb_sys
 
 GEM

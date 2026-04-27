@@ -22,7 +22,7 @@ options = {
   max_abs: DEFAULT_MAX_ABS,
   min_cos: DEFAULT_MIN_COS,
   min_p95_ratio: DEFAULT_MIN_P95_RATIO,
-  gte_threads: 0,
+  gte_threads: 1,
   exec_providers: 'cpu',
   python_worker_pool: 1,
   skip_python: false,

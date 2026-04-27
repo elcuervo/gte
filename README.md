@@ -50,7 +50,7 @@ end
 Config fields and defaults:
 
 - `model_dir`: absolute path to model directory
-- `threads`: `0` (default ONNX Runtime auto-thread mode)
+- `threads`: `1` (default tuned for p95 latency; use `0` for ONNX Runtime auto-thread mode)
 - `optimization_level`: `3`
 - `model_name`: `nil`
 - `normalize`: `true` (L2 normalization at Ruby-facing API)
@@ -68,7 +68,7 @@ Low-level embedder setup (without model cache):
 
 ```ruby
 embedder = GTE::Embedder.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
-  config.with(threads: 0, execution_providers: "cpu")
+  config.with(threads: 1, execution_providers: "cpu")
 end
 ```
 
