@@ -2,6 +2,9 @@
 
 module GTE
   class Embedder
+    DEFAULT_THREADS = 0
+    DEFAULT_OPTIMIZATION_LEVEL = 3
+
     class << self
       def config(model_dir)
         cfg = default_config(model_dir)
@@ -23,13 +26,11 @@ module GTE
         )
       end
 
-      private
-
       def default_config(model_dir)
         Config::Text.new(
           model_dir: File.expand_path(model_dir),
-          threads: 1,
-          optimization_level: 3,
+          threads: DEFAULT_THREADS,
+          optimization_level: DEFAULT_OPTIMIZATION_LEVEL,
           model_name: nil,
           normalize: true,
           output_tensor: nil,

@@ -33,8 +33,8 @@ raw_model = GTE.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
   config.with(normalize: false)
 end
 
-full_throttle = GTE.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
-  config.with(threads: 0)
+single_thread = GTE.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
+  config.with(threads: 1)
 end
 
 custom = GTE.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
@@ -50,7 +50,7 @@ end
 Config fields and defaults:
 
 - `model_dir`: absolute path to model directory
-- `threads`: `3` (set `0` for ONNX Runtime full-throttle threadpool)
+- `threads`: `0` (default ONNX Runtime auto-thread mode)
 - `optimization_level`: `3`
 - `model_name`: `nil`
 - `normalize`: `true` (L2 normalization at Ruby-facing API)
@@ -78,7 +78,7 @@ Use `GTE::Reranker.config(model_dir)` for cross-encoder reranking.
 
 ```ruby
 reranker = GTE::Reranker.config(ENV.fetch("GTE_RERANK_DIR")) do |config|
-  config.with(sigmoid: true, threads: 0)
+  config.with(sigmoid: true, threads: 1)
 end
 
 query = "how to train a neural network?"
@@ -102,7 +102,7 @@ ranked = reranker.rerank(query: query, candidates: candidates)
 Reranker config fields and defaults:
 
 - `model_dir`: absolute path to model directory
-- `threads`: `3`
+- `threads`: `1`
 - `optimization_level`: `3`
 - `model_name`: `nil`
 - `sigmoid`: `false` (set `true` if you want bounded [0,1] style scores)
@@ -174,7 +174,7 @@ make ci
 
 ## Benchmark
 
-The repo includes two benchmark paths:
+The repo includes a shared multi-runtime benchmark harness:
 
 ```bash
 make bench
@@ -182,6 +182,11 @@ nix develop -c bundle exec rake bench:pure_compare
 nix develop -c bundle exec rake bench:matrix_sweep
 nix develop -c bundle exec ruby bench/memory_probe.rb --compare-pure
 ```
+
+- `make bench`: Puma-like single-request comparison at concurrency `16`
+- `rake bench:pure_compare`: batch amortization comparison
+- `rake bench:matrix_sweep`: GTE provider/thread sweep using the shared result schema
+- Optional Python comparisons use `bench/python_onnxruntime.py` and are skipped automatically if local dependencies are unavailable.
 
 To run benchmark + append a `RUNS.md` entry + enforce goal checks:
 
@@ -191,5 +196,5 @@ make bench-record
 
 `bench/runs_ledger.rb check` is goal-focused by default:
 
-- Enforces goal metric (`response_time_p95` ratio threshold).
+- Enforces the goal metric (`response_time_p95`) across every enabled competitor.
 - Does not require current-version coverage in `RUNS.md` unless explicitly enabled.

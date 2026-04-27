@@ -16,6 +16,8 @@ models/
 
 # Bundler config
 .bundle/
+.bundle-gems/
+vendor/
 
 # Local editor/agent state
 .claude/

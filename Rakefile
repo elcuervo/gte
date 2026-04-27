@@ -19,8 +19,18 @@ end
 
 task default: %i[compile spec]
 
+def bundler_env
+  root = File.expand_path(__dir__)
+  {
+    'BUNDLE_DISABLE_SHARED_GEMS' => '1',
+    'GEM_HOME' => File.join(root, '.bundle-gems'),
+    'GEM_PATH' => File.join(root, '.bundle-gems'),
+    'BUNDLE_PATH' => File.join(root, 'vendor/bundle')
+  }
+end
+
 def run_in_nix(*command)
-  sh('nix', 'develop', '-c', *command)
+  sh(bundler_env, 'nix', 'develop', '-c', *command)
 end
 
 namespace :bench do

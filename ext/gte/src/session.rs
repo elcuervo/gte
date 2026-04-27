@@ -43,16 +43,29 @@ pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Res
 // Session pool
 // ---------------------------------------------------------------------------
 
-/// How many sessions to keep: one per physical core / num_threads, capped at
-/// available parallelism. When `num_threads == 0` (ORT auto-thread mode) a
-/// single session already saturates all cores, so capacity is 1.
+const AUTO_THREAD_POOL_CAP: usize = 6;
+
+/// Keep enough sessions to cover the configured thread budget without
+/// oversubscribing CPU parallelism. In ORT auto-thread mode (`num_threads == 0`)
+/// we still keep a modest pool because request-level concurrency benefits from
+/// more than one session even when ORT manages thread counts internally.
 fn pool_capacity(num_threads: usize) -> usize {
-    if num_threads == 0 {
+    let available_parallelism = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1);
+    pool_capacity_with_parallelism(num_threads, available_parallelism)
+}
+
+fn pool_capacity_with_parallelism(num_threads: usize, available_parallelism: usize) -> usize {
+    if available_parallelism == 0 {
         return 1;
     }
-    std::thread::available_parallelism()
-        .map(|n| ((n.get() + num_threads - 1) / num_threads).max(6))
-        .unwrap_or(6)
+
+    if num_threads == 0 {
+        return available_parallelism.clamp(1, AUTO_THREAD_POOL_CAP);
+    }
+
+    available_parallelism.div_ceil(num_threads).max(1)
 }
 
 pub struct SessionPool {
@@ -78,35 +91,54 @@ impl SessionPool {
     }
 
     pub fn acquire(&self) -> Result<PooledSession<'_>> {
-        loop {
-            // Fast path: grab from pool.
-            {
-                let mut lock = self.sessions.lock().unwrap();
-                if let Some(session) = lock.pop() {
-                    return Ok(PooledSession { pool: self, session: Some(session) });
-                }
-            }
-
-            // Slow path: try to grow up to capacity.
-            let grew = self.created.fetch_update(
-                Ordering::AcqRel,
-                Ordering::Acquire,
-                |n| if n < self.capacity { Some(n + 1) } else { None },
-            );
-            if grew.is_ok() {
-                let session = build_session(&self.model_path, &self.build_config)?;
-                return Ok(PooledSession { pool: self, session: Some(session) });
-            }
-
-            // Pool at capacity: block until one is returned.
-            let lock = self.sessions.lock().unwrap();
-            drop(self.available.wait(lock).unwrap());
+        if let Some(session) = self.take_available_session() {
+            return Ok(PooledSession { pool: self, session: Some(session) });
         }
+
+        if let Some(session) = self.try_grow()? {
+            return Ok(PooledSession { pool: self, session: Some(session) });
+        }
+
+        let session = self.wait_for_session();
+        Ok(PooledSession { pool: self, session: Some(session) })
     }
 
     fn release(&self, session: Session) {
         self.sessions.lock().unwrap().push(session);
         self.available.notify_one();
+    }
+
+    fn take_available_session(&self) -> Option<Session> {
+        self.sessions.lock().unwrap().pop()
+    }
+
+    fn try_grow(&self) -> Result<Option<Session>> {
+        let grew = self.created.fetch_update(
+            Ordering::AcqRel,
+            Ordering::Acquire,
+            |count| (count < self.capacity).then_some(count + 1),
+        );
+        if grew.is_err() {
+            return Ok(None);
+        }
+
+        match build_session(&self.model_path, &self.build_config) {
+            Ok(session) => Ok(Some(session)),
+            Err(error) => {
+                self.created.fetch_sub(1, Ordering::AcqRel);
+                Err(error)
+            }
+        }
+    }
+
+    fn wait_for_session(&self) -> Session {
+        let mut lock = self.sessions.lock().unwrap();
+        loop {
+            if let Some(session) = lock.pop() {
+                return session;
+            }
+            lock = self.available.wait(lock).unwrap();
+        }
     }
 }
 
@@ -210,7 +242,10 @@ pub fn run_session(
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_provider_registrations, resolve_provider_order_with_env};
+    use super::{
+        parse_provider_registrations, pool_capacity_with_parallelism,
+        resolve_provider_order_with_env,
+    };
 
     #[test]
     fn parse_provider_registrations_keeps_supported_order() {
@@ -244,5 +279,20 @@ mod tests {
     fn resolve_provider_order_falls_back_to_env_then_cpu_default() {
         assert_eq!(resolve_provider_order_with_env(None, Some("coreml")), "coreml");
         assert_eq!(resolve_provider_order_with_env(None, None), "cpu");
+    }
+
+    #[test]
+    fn pool_capacity_uses_bounded_parallel_pool_for_auto_thread_mode() {
+        assert_eq!(pool_capacity_with_parallelism(0, 1), 1);
+        assert_eq!(pool_capacity_with_parallelism(0, 4), 4);
+        assert_eq!(pool_capacity_with_parallelism(0, 8), 6);
+    }
+
+    #[test]
+    fn pool_capacity_scales_with_available_parallelism() {
+        assert_eq!(pool_capacity_with_parallelism(1, 8), 8);
+        assert_eq!(pool_capacity_with_parallelism(2, 8), 4);
+        assert_eq!(pool_capacity_with_parallelism(3, 8), 3);
+        assert_eq!(pool_capacity_with_parallelism(8, 4), 1);
     }
 }
