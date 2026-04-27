@@ -19,17 +19,7 @@ module GTE
 
   class << self
     def config(model_dir)
-      cfg = Config::Text.new(
-        model_dir: File.expand_path(model_dir),
-        threads: 1,
-        optimization_level: 3,
-        model_name: nil,
-        normalize: true,
-        output_tensor: nil,
-        max_length: nil,
-        padding: nil,
-        execution_providers: nil
-      )
+      cfg = Embedder.default_config(model_dir)
 
       cfg = yield(cfg) if block_given?
 

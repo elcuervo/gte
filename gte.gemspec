@@ -27,7 +27,9 @@ Gem::Specification.new do |spec|
 
   spec.add_development_dependency 'rake'
   spec.add_development_dependency 'rake-compiler'
-  spec.add_dependency 'rb_sys'
+  # Keep rb_sys pinned so cross-gem's lockfile parser resolves a stable
+  # version instead of falling back to the latest remote gem.
+  spec.add_dependency 'rb_sys', '= 0.9.126'
   spec.add_development_dependency 'rspec'
   spec.add_development_dependency 'rspec-benchmark'
   spec.metadata['rubygems_mfa_required'] = 'true'
