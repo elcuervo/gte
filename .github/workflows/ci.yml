@@ -71,8 +71,17 @@ jobs:
       matrix:
         include:
           - platform: x86_64-linux
+            cc: gcc
+            cxx: g++
+            library_path: ""
           - platform: aarch64-linux
+            cc: aarch64-linux-gnu-gcc
+            cxx: aarch64-linux-gnu-g++
+            library_path: ""
           - platform: arm64-darwin
+            cc: aarch64-apple-darwin-clang
+            cxx: aarch64-apple-darwin-clang++
+            library_path: /usr/lib/llvm-10/lib/clang/10.0.0/lib/darwin
 
     steps:
       - uses: actions/checkout@v4
@@ -89,6 +98,10 @@ jobs:
 
       - uses: oxidize-rb/actions/cross-gem@v1
         id: cross-gem
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+          LIBRARY_PATH: ${{ matrix.library_path }}
         with:
           platform: ${{ matrix.platform }}
           ruby-versions: "3.3"
