@@ -31,7 +31,7 @@ extension_task = Rake::ExtensionTask.new('gte', spec) do |ext|
   ext.cross_platform = cross_platforms
 end
 
-if cross_target && !cross_target.empty? && ENV['RUBY_CC_VERSION']
+if cross_target && !cross_target.empty? && ENV['RUBY_CC_VERSION'] && cross_target != 'x86_64-linux'
   ruby_version = ENV['RUBY_CC_VERSION'].split(':').first
   lib_binary_path = File.join(extension_task.lib_dir, File.basename(extension_task.binary(cross_target)))
   copy_task = "copy:gte:#{cross_target}:#{ruby_version}"
