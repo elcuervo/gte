@@ -37,7 +37,6 @@ impl Embedder {
 
     pub fn from_dir<P: AsRef<Path>>(
         dir: P,
-        num_threads: usize,
         optimization_level: u8,
         overrides: ModelLoadOverrides<'_>,
     ) -> Result<Self> {
@@ -76,7 +75,6 @@ impl Embedder {
             mode: ExtractorMode::Raw,
             with_type_ids: false,
             with_attention_mask: true,
-            num_threads,
             optimization_level,
             execution_providers: overrides.execution_providers.map(str::to_string),
         };
@@ -101,7 +99,6 @@ impl Embedder {
             mode,
             with_type_ids,
             with_attention_mask,
-            num_threads,
             optimization_level,
             execution_providers: overrides.execution_providers.map(str::to_string),
         };

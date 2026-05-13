@@ -19,7 +19,6 @@ module GTE
       def default_config(model_dir)
         Config::Reranker.new(
           model_dir: File.expand_path(model_dir),
-          threads: 1,
           optimization_level: 3,
           model_name: nil,
           sigmoid: false,
@@ -33,7 +32,6 @@ module GTE
       def build(cfg)
         new(
           cfg.model_dir,
-          cfg.threads,
           cfg.optimization_level,
           cfg.model_name.to_s,
           cfg.sigmoid,

@@ -1,4 +1,4 @@
-.PHONY: setup compile test lint bench bench-memory bench-record clean ci models
+.PHONY: setup compile test lint bench bench-memory bench-record perf-check clean ci models
 
 # All commands run inside nix develop
 NIX := nix develop -c
@@ -38,6 +38,12 @@ bench-memory: setup compile models
 
 bench-record: setup compile models
 	$(NIX) $(BUNDLE_ENV) bundle exec rake bench:record_run
+
+perf-check: setup compile models
+	GTE_MODEL_DIR=$(CURDIR)/models/e5 GTE_CLIP_DIR= GTE_SIGLIP2_DIR=$(CURDIR)/models/siglip2 \
+		$(NIX) $(BUNDLE_ENV) bundle exec ruby bench/puma_compare.rb --skip-python --enforce-goal --min-p95-ratio 1.5
+	GTE_MODEL_DIR=$(CURDIR)/models/hyperclusters GTE_CLIP_DIR= GTE_SIGLIP2_DIR= \
+		$(NIX) $(BUNDLE_ENV) bundle exec ruby bench/puma_compare.rb --skip-python --enforce-goal --min-p95-ratio 1.5
 
 clean:
 	$(NIX) $(BUNDLE_ENV) bundle exec rake clobber

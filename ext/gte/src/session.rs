@@ -27,23 +27,12 @@ pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Res
     let mut builder = Session::builder()
         .map_err(ort_err)?
         .with_optimization_level(opt_level)
-        .map_err(ort_err)?
-        .with_memory_pattern(false)
         .map_err(ort_err)?;
 
     let providers = preferred_execution_providers(config.execution_providers.as_deref());
     if !providers.is_empty() {
         builder = builder
             .with_execution_providers(providers)
-            .map_err(ort_err)?;
-    }
-
-    if config.num_threads > 0 {
-        builder = builder
-            .with_intra_threads(config.num_threads)
-            .map_err(ort_err)?;
-        builder = builder
-            .with_inter_threads(config.num_threads)
             .map_err(ort_err)?;
     }
 
@@ -54,25 +43,10 @@ pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Res
 // Session pool
 // ---------------------------------------------------------------------------
 
-fn pool_capacity(num_threads: usize) -> usize {
-    let available_parallelism = std::thread::available_parallelism()
+fn pool_capacity() -> usize {
+    std::thread::available_parallelism()
         .map(|n| n.get())
-        .unwrap_or(1);
-    pool_capacity_with_parallelism(num_threads, available_parallelism)
-}
-
-fn pool_capacity_with_parallelism(num_threads: usize, available_parallelism: usize) -> usize {
-    if available_parallelism == 0 {
-        return 1;
-    }
-
-    // Auto-thread mode: ORT grabs all cores per session. One session avoids
-    // N² intra-op oversubscription when multiple Ruby threads call concurrently.
-    if num_threads == 0 {
-        return 1;
-    }
-
-    available_parallelism.div_ceil(num_threads).max(1)
+        .unwrap_or(1)
 }
 
 pub struct SessionPool {
@@ -86,7 +60,7 @@ pub struct SessionPool {
 
 impl SessionPool {
     pub fn new(initial: Session, model_path: PathBuf, build_config: ModelConfig) -> Self {
-        let capacity = pool_capacity(build_config.num_threads);
+        let capacity = pool_capacity();
         Self {
             sessions: Mutex::new(vec![initial]),
             available: Condvar::new(),
@@ -281,10 +255,7 @@ mod tests {
     use crate::model_config::{ExtractorMode, ModelConfig, PaddingMode};
     use ndarray::{array, ArrayView2};
 
-    use super::{
-        extract_embeddings, parse_provider_registrations, pool_capacity_with_parallelism,
-        resolve_provider_order_with_env,
-    };
+    use super::{extract_embeddings, parse_provider_registrations, resolve_provider_order_with_env};
 
     fn test_config(mode: ExtractorMode) -> ModelConfig {
         ModelConfig {
@@ -294,7 +265,6 @@ mod tests {
             mode,
             with_type_ids: false,
             with_attention_mask: true,
-            num_threads: 1,
             optimization_level: 3,
             execution_providers: None,
         }
@@ -340,24 +310,6 @@ mod tests {
             "coreml"
         );
         assert_eq!(resolve_provider_order_with_env(None, None), "cpu");
-    }
-
-    #[test]
-    fn pool_capacity_uses_single_session_for_auto_thread_mode() {
-        // Auto-thread = ORT uses all cores per session. Pool=1 avoids N²
-        // intra-op oversubscription under concurrent Ruby threads.
-        assert_eq!(pool_capacity_with_parallelism(0, 1), 1);
-        assert_eq!(pool_capacity_with_parallelism(0, 4), 1);
-        assert_eq!(pool_capacity_with_parallelism(0, 8), 1);
-    }
-
-    #[test]
-    fn pool_capacity_scales_with_available_parallelism() {
-        assert_eq!(pool_capacity_with_parallelism(1, 1), 1);
-        assert_eq!(pool_capacity_with_parallelism(1, 8), 8);
-        assert_eq!(pool_capacity_with_parallelism(2, 8), 4);
-        assert_eq!(pool_capacity_with_parallelism(3, 8), 3);
-        assert_eq!(pool_capacity_with_parallelism(8, 4), 1);
     }
 
     #[test]

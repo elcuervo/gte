@@ -170,7 +170,6 @@ impl RbEmbedder {
     pub fn rb_new(
         _ruby: &Ruby,
         dir_path: String,
-        num_threads: usize,
         optimization_level: u8,
         model_name: String,
         normalize: bool,
@@ -191,7 +190,7 @@ impl RbEmbedder {
             padding: padding_override,
             execution_providers: execution_providers_override,
         };
-        let embedder = Embedder::from_dir(&dir_path, num_threads, optimization_level, overrides)
+        let embedder = Embedder::from_dir(&dir_path, optimization_level, overrides)
             .map_err(magnus::Error::from)?;
         Ok(RbEmbedder { inner: Arc::new(embedder), normalize })
     }
@@ -214,7 +213,6 @@ impl RbReranker {
     pub fn rb_new(
         _ruby: &Ruby,
         dir_path: String,
-        num_threads: usize,
         optimization_level: u8,
         model_name: String,
         sigmoid: bool,
@@ -235,7 +233,7 @@ impl RbReranker {
             padding: padding_override,
             execution_providers: execution_providers_override,
         };
-        let reranker = Reranker::from_dir(&dir_path, num_threads, optimization_level, overrides)
+        let reranker = Reranker::from_dir(&dir_path, optimization_level, overrides)
             .map_err(magnus::Error::from)?;
         Ok(RbReranker { inner: Arc::new(reranker), sigmoid })
     }
@@ -345,12 +343,12 @@ impl RbTensor {
 pub fn register(ruby: &Ruby) -> Result<(), Error> {
     let module = ruby.define_module("GTE")?;
     let embedder_class = module.define_class("Embedder", ruby.class_object())?;
-    embedder_class.define_singleton_method("new", function!(RbEmbedder::rb_new, 9))?;
+    embedder_class.define_singleton_method("new", function!(RbEmbedder::rb_new, 8))?;
     embedder_class.define_method("embed", method!(RbEmbedder::rb_embed, 1))?;
     embedder_class.define_method("embed_one", method!(RbEmbedder::rb_embed_one, 1))?;
 
     let reranker_class = module.define_class("Reranker", ruby.class_object())?;
-    reranker_class.define_singleton_method("new", function!(RbReranker::rb_new, 9))?;
+    reranker_class.define_singleton_method("new", function!(RbReranker::rb_new, 8))?;
     reranker_class.define_method("score", method!(RbReranker::rb_score, 2))?;
 
     let tensor_class = module.define_class("Tensor", ruby.class_object())?;

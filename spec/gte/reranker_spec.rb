@@ -33,7 +33,7 @@ RSpec.describe 'GTE::Reranker' do
     end
 
     it 'scores query/candidate pairs with one score per candidate' do
-      reranker = GTE::Reranker.config(GTE_RERANK_DIR) { |config| config.with(threads: 0) }
+      reranker = GTE::Reranker.config(GTE_RERANK_DIR)
       scores = reranker.score(query, candidates)
 
       expect(scores).to be_a(Array)

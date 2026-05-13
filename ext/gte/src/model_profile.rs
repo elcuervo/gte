@@ -201,10 +201,14 @@ pub fn select_output_tensor(
         }
     }
 
-    session
-        .outputs()
-        .first()
-        .map(|o| o.name().to_owned())
+    let outputs = session.outputs();
+    let best = outputs
+        .iter()
+        .find(|o| {
+            matches!(o.dtype(), ort::value::ValueType::Tensor { shape, .. } if shape.len() == 2)
+        })
+        .or_else(|| outputs.first());
+    best.map(|o| o.name().to_owned())
         .ok_or_else(|| GteError::Inference("model has no outputs".into()))
 }
 

@@ -7,6 +7,7 @@ require 'tokenizers'
 RSpec.describe 'Integration' do
   SINGLE_BATCH_MIN_COSINE = 0.995
   SINGLE_BATCH_MAX_ABS_DIFF = 0.03
+  REFERENCE_MIN_COSINE = 0.9999
 
   def cosine_similarity(a, b)
     dot = a.zip(b).sum { |x, y| x * y }
@@ -24,6 +25,39 @@ RSpec.describe 'Integration' do
     return result.to_a if result.respond_to?(:to_a)
 
     result
+  end
+
+  # Replicates GTE postprocessing for rank-3 output (MeanPool + optional L2 normalize).
+  def reference_mean_pool_normalize(hidden_states, attention_mask, normalize: true)
+    dim = hidden_states.first.first.length
+    result = Array.new(dim, 0.0)
+    count = 0
+    hidden_states.first.each_with_index do |token_vec, i|
+      next if attention_mask[i] == 0
+
+      token_vec.each_with_index { |v, j| result[j] += v }
+      count += 1
+    end
+    result.map! { |v| v / count }
+    normalize ? l2_normalize(result) : result
+  end
+
+  # Replicates GTE postprocessing for rank-2 output (Raw + optional L2 normalize).
+  def reference_raw_normalize(vec, normalize: true)
+    normalize ? l2_normalize(vec) : vec
+  end
+
+  def l2_normalize(vec)
+    norm = Math.sqrt(vec.sum { |v| v * v })
+    norm < 1e-12 ? vec : vec.map { |v| v / norm }
+  end
+
+  # Tokenize text with Tokenizers gem using same batch-longest padding GTE uses.
+  def reference_tokenize(tokenizer_path, text, no_padding: false)
+    tok = Tokenizers.from_file(tokenizer_path)
+    tok.no_padding if no_padding
+    enc = tok.encode_batch([text]).first
+    { input_ids: [enc.ids], attention_mask: [enc.attention_mask], type_ids: [enc.type_ids] }
   end
 
   context 'GTE.config API', if: GTE_E5_AVAILABLE do
@@ -156,6 +190,23 @@ RSpec.describe 'Integration' do
         GTE.config(GTE_E5_DIR) { |config| config.with(padding: 'unknown') }
       end.to raise_error(GTE::Error, /padding mode.*auto, batch_longest, fixed/i)
     end
+
+    it 'matches reference OnnxRuntime inference (mean pool + L2 normalize)' do
+      text = 'query: the quick brown fox'
+      gte_vec = model.embed(text).row(0)
+
+      tokens = reference_tokenize(File.join(GTE_E5_DIR, 'tokenizer.json'), text, no_padding: true)
+      ref_model = OnnxRuntime::Model.new(File.join(GTE_E5_DIR, 'onnx', 'model.onnx'))
+      outputs = ref_model.predict({
+                                    input_ids: tokens[:input_ids],
+                                    attention_mask: tokens[:attention_mask],
+                                    token_type_ids: tokens[:type_ids]
+                                  })
+      hidden = outputs['last_hidden_state']
+      ref_vec = reference_mean_pool_normalize(hidden, tokens[:attention_mask].first)
+
+      expect(cosine_similarity(gte_vec, ref_vec)).to be >= REFERENCE_MIN_COSINE
+    end
   end
 
   context 'CLIP', if: GTE_CLIP_AVAILABLE do
@@ -174,6 +225,18 @@ RSpec.describe 'Integration' do
       sim_related = cosine_similarity(embeddings[0], embeddings[1])
       sim_unrelated = cosine_similarity(embeddings[0], embeddings[2])
       expect(sim_related).to be > sim_unrelated
+    end
+
+    it 'matches reference OnnxRuntime inference (raw text_embeds + L2 normalize)' do
+      text = 'a photo of a cat'
+      gte_vec = model.embed(text).row(0)
+
+      tokens = reference_tokenize(File.join(GTE_CLIP_DIR, 'tokenizer.json'), text, no_padding: true)
+      ref_model = OnnxRuntime::Model.new(File.join(GTE_CLIP_DIR, 'onnx', 'text_model.onnx'))
+      outputs = ref_model.predict({ input_ids: tokens[:input_ids] })
+      ref_vec = reference_raw_normalize(outputs['text_embeds'].first)
+
+      expect(cosine_similarity(gte_vec, ref_vec)).to be >= REFERENCE_MIN_COSINE
     end
   end
 
@@ -224,6 +287,18 @@ RSpec.describe 'Integration' do
       result = model.embed(text)
       expect(result.rows).to eq(1)
       expect(result.dim).to eq(GTE_SIGLIP2_EMBEDDING_DIM)
+    end
+
+    it 'matches reference OnnxRuntime inference (pooler_output + L2 normalize)' do
+      text = 'a photo of a cat'
+      gte_vec = model.embed(text).row(0)
+
+      tokens = reference_tokenize(File.join(GTE_SIGLIP2_DIR, 'tokenizer.json'), text, no_padding: true)
+      ref_model = OnnxRuntime::Model.new(File.join(GTE_SIGLIP2_DIR, 'onnx', 'text_model.onnx'))
+      outputs = ref_model.predict({ input_ids: tokens[:input_ids] })
+      ref_vec = reference_raw_normalize(outputs['pooler_output'].first)
+
+      expect(cosine_similarity(gte_vec, ref_vec)).to be >= REFERENCE_MIN_COSINE
     end
   end
 

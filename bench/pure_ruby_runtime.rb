@@ -157,11 +157,7 @@ module PureRubyTextEmbedding
     end
 
     def build_feeds(encodings)
-      max_len = if @fixed_padding_length
-                  [@max_length, @fixed_padding_length].min
-                else
-                  [encodings.map { |encoding| encoding.ids.length }.max || 0, @max_length].min
-                end
+      max_len = [encodings.map { |encoding| encoding.ids.length }.max || 0, @max_length].min
       input_ids = encodings.map { |encoding| pad_to_max(encoding.ids, max_len) }
       feeds = { input_ids: input_ids }
 

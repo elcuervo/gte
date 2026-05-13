@@ -22,7 +22,6 @@ options = {
   max_abs: DEFAULT_MAX_ABS,
   min_cos: DEFAULT_MIN_COS,
   min_p95_ratio: DEFAULT_MIN_P95_RATIO,
-  gte_threads: 1,
   exec_providers: 'cpu',
   python_worker_pool: 1,
   skip_python: false,
@@ -37,7 +36,6 @@ OptionParser.new do |opts|
   opts.on('--max-abs FLOAT', Float) { |value| options[:max_abs] = value }
   opts.on('--min-cos FLOAT', Float) { |value| options[:min_cos] = value }
   opts.on('--min-p95-ratio FLOAT', Float) { |value| options[:min_p95_ratio] = value }
-  opts.on('--gte-threads N', Integer) { |value| options[:gte_threads] = value }
   opts.on('--exec-providers LIST') { |value| options[:exec_providers] = value.strip }
   opts.on('--python-worker-pool N', Integer) { |value| options[:python_worker_pool] = value }
   opts.on('--skip-python') { options[:skip_python] = true }
@@ -49,8 +47,8 @@ if options[:iterations] <= 0 || options[:concurrency] <= 0 || options[:run_sampl
   exit 1
 end
 
-if options[:gte_threads].negative? || options[:python_worker_pool] <= 0
-  warn('gte-threads must be >= 0 and python-worker-pool must be > 0')
+if options[:python_worker_pool] <= 0
+  warn('python-worker-pool must be > 0')
   exit 1
 end
 
@@ -62,7 +60,6 @@ end
 
 adapters = [
   Bench::Adapters::Gte.new(profile: {
-                             'threads' => options[:gte_threads],
                              'execution_providers' => options[:exec_providers]
                            }),
   Bench::Adapters::PureRuby.new
@@ -80,7 +77,6 @@ puts '=' * 72
 puts "iterations/model: #{options[:iterations]}"
 puts "concurrency: #{options[:concurrency]}"
 puts "sample runs: #{options[:run_samples]} (median aggregation)"
-puts "gte threads: #{options[:gte_threads]}"
 puts "execution providers: #{options[:exec_providers]}"
 puts "python adapter: #{options[:skip_python] ? 'disabled' : "enabled (pool=#{options[:python_worker_pool]})"}"
 puts "thresholds: max_abs<=#{options[:max_abs]} min_cos>=#{options[:min_cos]} response_p95_ratio>=#{options[:min_p95_ratio]}x"

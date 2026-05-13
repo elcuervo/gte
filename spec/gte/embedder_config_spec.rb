@@ -8,7 +8,6 @@ RSpec.describe GTE::Embedder do
       config = described_class.default_config('/tmp/demo-model')
 
       expect(config.model_dir).to eq('/tmp/demo-model')
-      expect(config.threads).to eq(0)
       expect(config.optimization_level).to eq(3)
       expect(config.normalize).to be(true)
       expect(config.execution_providers).to be_nil
@@ -19,7 +18,6 @@ RSpec.describe GTE::Embedder do
     it 'expands a text config into native embedder constructor arguments' do
       expect(described_class).to receive(:new).with(
         '/tmp/demo-model',
-        4,
         3,
         '',
         false,
@@ -30,7 +28,6 @@ RSpec.describe GTE::Embedder do
       ).and_return(:built)
 
       config = described_class.default_config('/tmp/demo-model').with(
-        threads: 4,
         normalize: false,
         output_tensor: 'sentence_embedding',
         max_length: 256,
@@ -45,7 +42,6 @@ RSpec.describe GTE::Embedder do
   describe '.config' do
     it 'uses the shared text embedding defaults' do
       expect(described_class).to receive(:from_config) do |config|
-        expect(config.threads).to eq(0)
         expect(config.normalize).to be(true)
         :embedder
       end
@@ -59,7 +55,6 @@ RSpec.describe GTE do
   describe '.config' do
     it 'uses the embedder shared text defaults' do
       expect(GTE::Model).to receive(:new) do |config|
-        expect(config.threads).to eq(0)
         expect(config.normalize).to be(true)
         :model
       end

@@ -15,7 +15,7 @@ RSpec.describe 'Threading and GVL release', if: GTE_E5_AVAILABLE do
   end
 
   it 'releases GVL: background Ruby thread makes progress during inference' do
-    model = GTE.config(GTE_E5_DIR) { |c| c.with(threads: 1) }
+    model = GTE.config(GTE_E5_DIR)
     10.times { model.embed_binary(text) }
 
     stop = false
@@ -33,27 +33,5 @@ RSpec.describe 'Threading and GVL release', if: GTE_E5_AVAILABLE do
 
     # If GVL held during inference, spinner never gets scheduled.
     expect(counter).to be > 100, "spinner advanced #{counter}× — GVL likely held"
-  end
-
-  it 'threads=0 single-request not slower than threads=1 on long input' do
-    long = "query: #{'the quick brown fox jumps over the lazy dog ' * 20}"
-
-    auto = GTE.config(GTE_E5_DIR) { |c| c.with(threads: 0) }
-    single = GTE.config(GTE_E5_DIR) { |c| c.with(threads: 1) }
-
-    10.times do
-      auto.embed_binary(long)
-      single.embed_binary(long)
-    end
-
-    t_auto = time_concurrent(auto, 1, 30)
-    t_single = time_concurrent(single, 1, 30)
-
-    # Sanity check: threads=0 must not be catastrophically slower than
-    # threads=1 even on tiny test fixtures where ORT thread-setup overhead
-    # dominates compute. Real perf validation lives in cargo bench
-    # (`embedding_e2e` group) on production-sized models.
-    expect(t_auto).to be < (t_single * 2.0),
-                      "auto=#{t_auto}s single-thread=#{t_single}s"
   end
 end

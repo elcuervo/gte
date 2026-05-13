@@ -26,18 +26,6 @@ RSpec.describe 'GTE model cache', if: GTE_E5_AVAILABLE do
     expect(ids.uniq.length).to eq(1)
   end
 
-  it 'uses independent cache entries when parameters differ' do
-    a = build_model(dir, threads: 1)
-    b = build_model(dir, threads: 2)
-    expect(a.object_id).not_to eq(b.object_id)
-  end
-
-  it 'accepts 0 threads for full-throttle mode as a separate cache key' do
-    single_thread = build_model(dir, threads: 1)
-    full_throttle = build_model(dir, threads: 0)
-    expect(single_thread.object_id).not_to eq(full_throttle.object_id)
-  end
-
   it 'uses independent cache entries when normalize differs' do
     normalized = build_model(dir, normalize: true)
     raw = build_model(dir, normalize: false)

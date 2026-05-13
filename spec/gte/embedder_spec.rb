@@ -36,13 +36,13 @@ RSpec.describe 'GTE::Embedder' do
   describe 'config helpers with invalid directory' do
     it 'raises GTE::Error when directory does not contain model' do
       expect do
-        GTE::Embedder.config('/nonexistent/dir') { |cfg| cfg.with(threads: 0) }
+        GTE::Embedder.config('/nonexistent/dir')
       end.to raise_error(GTE::Error)
     end
   end
 
   context 'with real model fixture', if: GTE_FIXTURES_AVAILABLE do
-    let(:embedder) { GTE::Embedder.config(GTE_E5_DIR) { |cfg| cfg.with(threads: 0) } }
+    let(:embedder) { GTE::Embedder.config(GTE_E5_DIR) }
     let(:sample_texts) { ['Hello world', 'The quick brown fox'] }
     let(:single_text)  { ['Hello world'] }
 

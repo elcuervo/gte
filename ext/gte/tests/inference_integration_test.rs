@@ -8,7 +8,7 @@ fn model_dir(env_var: &str) -> Option<String> {
 #[test]
 fn test_e5_single_embedding_shape() {
     let Some(dir) = model_dir("GTE_BENCH_E5_DIR") else { return };
-    let embedder = Embedder::from_dir(&dir, 0, 3, ModelLoadOverrides::default())
+    let embedder = Embedder::from_dir(&dir, 0, ModelLoadOverrides::default())
         .expect("embedder should initialize");
     let result = embedder
         .embed(vec!["query: Hello world".to_string()])
@@ -21,7 +21,7 @@ fn test_e5_single_embedding_shape() {
 #[test]
 fn test_clip_single_embedding_shape() {
     let Some(dir) = model_dir("GTE_BENCH_CLIP_DIR") else { return };
-    let embedder = Embedder::from_dir(&dir, 0, 3, ModelLoadOverrides::default())
+    let embedder = Embedder::from_dir(&dir, 0, ModelLoadOverrides::default())
         .expect("embedder should initialize");
     let result = embedder
         .embed(vec!["a photo of a cat".to_string()])
@@ -34,7 +34,7 @@ fn test_clip_single_embedding_shape() {
 #[test]
 fn test_e5_batch_embedding_shape() {
     let Some(dir) = model_dir("GTE_BENCH_E5_DIR") else { return };
-    let embedder = Embedder::from_dir(&dir, 0, 3, ModelLoadOverrides::default())
+    let embedder = Embedder::from_dir(&dir, 0, ModelLoadOverrides::default())
         .expect("embedder should initialize");
     let texts = vec![
         "query: first sentence".to_string(),
@@ -51,7 +51,7 @@ fn test_e5_batch_embedding_shape() {
 #[test]
 fn test_e5_long_input_truncation_no_error() {
     let Some(dir) = model_dir("GTE_BENCH_E5_DIR") else { return };
-    let embedder = Embedder::from_dir(&dir, 0, 3, ModelLoadOverrides::default())
+    let embedder = Embedder::from_dir(&dir, 0, ModelLoadOverrides::default())
         .expect("embedder should initialize");
     let very_long_text = "word ".repeat(1000);
     let result = embedder
