@@ -79,7 +79,7 @@ jobs:
 
       - uses: oxidize-rb/actions/setup-ruby-and-rust@v1.4.4
         with:
-          ruby-version: "3.3"
+          ruby-version: "3.4"
           bundler-cache: true
           cargo-cache: true
           cargo-vendor: true
@@ -91,4 +91,4 @@ jobs:
         id: cross-gem
         with:
           platform: ${{ matrix.platform }}
-          ruby-versions: "3.3"
+          ruby-versions: "3.4"

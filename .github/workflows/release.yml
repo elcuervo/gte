@@ -20,12 +20,12 @@ jobs:
 
       - uses: oxidize-rb/actions/setup-ruby-and-rust@v1.4.4
         with:
-          ruby-version: "3.3"
+          ruby-version: "3.4"
           bundler-cache: true
           cargo-cache: true
 
       - name: Cross-compile native gem
-        run: bundle exec rb-sys-dock --platform ${{ matrix.platform }} -- rake native:${{ matrix.platform }} gem
+        run: bundle exec rb-sys-dock --platform ${{ matrix.platform }} --ruby-versions 3.4 -- rake native:${{ matrix.platform }} gem
 
       - uses: actions/upload-artifact@v6
         with:
@@ -39,7 +39,7 @@ jobs:
 
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.3"
+          ruby-version: "3.4"
           bundler-cache: true
 
       - name: Build source gem
@@ -68,7 +68,7 @@ jobs:
 
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.3"
+          ruby-version: "3.4"
 
       - name: Configure RubyGems credentials
         uses: rubygems/configure-rubygems-credentials@main

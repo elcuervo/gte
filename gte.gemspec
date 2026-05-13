@@ -9,7 +9,7 @@ Gem::Specification.new do |spec|
   spec.email         = ['elcuervo@elcuervo.net']
   spec.homepage      = 'https://github.com/elcuervo/gte'
 
-  spec.required_ruby_version = '>= 3.2'
+  spec.required_ruby_version = '>= 3.4'
 
   spec.extensions = ['ext/gte/extconf.rb']
 
