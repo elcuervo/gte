@@ -4,7 +4,8 @@ ext/gte/target/
 /target
 
 # Local model fixtures and temporary assets
-ext/gte/tests/fixtures/
+ext/gte/tests/fixtures/*
+!ext/gte/tests/fixtures/minimal/
 tmp/
 
 # Benchmark artifacts
