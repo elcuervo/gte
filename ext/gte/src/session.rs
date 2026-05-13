@@ -28,7 +28,7 @@ pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Res
         .map_err(ort_err)?
         .with_optimization_level(opt_level)
         .map_err(ort_err)?
-        .with_memory_pattern(true)
+        .with_memory_pattern(false)
         .map_err(ort_err)?;
 
     let providers = preferred_execution_providers(config.execution_providers.as_deref());
@@ -54,12 +54,6 @@ pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Res
 // Session pool
 // ---------------------------------------------------------------------------
 
-const AUTO_THREAD_POOL_CAP: usize = 6;
-
-/// Keep enough sessions to cover the configured thread budget without
-/// oversubscribing CPU parallelism. In ORT auto-thread mode (`num_threads == 0`)
-/// we still keep a modest pool because request-level concurrency benefits from
-/// more than one session even when ORT manages thread counts internally.
 fn pool_capacity(num_threads: usize) -> usize {
     let available_parallelism = std::thread::available_parallelism()
         .map(|n| n.get())
@@ -72,8 +66,10 @@ fn pool_capacity_with_parallelism(num_threads: usize, available_parallelism: usi
         return 1;
     }
 
+    // Auto-thread mode: ORT grabs all cores per session. One session avoids
+    // N² intra-op oversubscription when multiple Ruby threads call concurrently.
     if num_threads == 0 {
-        return available_parallelism.clamp(1, AUTO_THREAD_POOL_CAP);
+        return 1;
     }
 
     available_parallelism.div_ceil(num_threads).max(1)
@@ -347,10 +343,12 @@ mod tests {
     }
 
     #[test]
-    fn pool_capacity_uses_bounded_parallel_pool_for_auto_thread_mode() {
+    fn pool_capacity_uses_single_session_for_auto_thread_mode() {
+        // Auto-thread = ORT uses all cores per session. Pool=1 avoids N²
+        // intra-op oversubscription under concurrent Ruby threads.
         assert_eq!(pool_capacity_with_parallelism(0, 1), 1);
-        assert_eq!(pool_capacity_with_parallelism(0, 4), 4);
-        assert_eq!(pool_capacity_with_parallelism(0, 8), 6);
+        assert_eq!(pool_capacity_with_parallelism(0, 4), 1);
+        assert_eq!(pool_capacity_with_parallelism(0, 8), 1);
     }
 
     #[test]

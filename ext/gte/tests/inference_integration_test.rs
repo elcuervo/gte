@@ -1,12 +1,14 @@
 use gte::embedder::Embedder;
 use gte::model_config::ModelLoadOverrides;
 
-#[test]
-#[ignore = "requires ext/gte/tests/fixtures/e5/tokenizer.json and model.onnx"]
-fn test_e5_single_embedding_shape() {
-    const DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/e5");
+fn model_dir(env_var: &str) -> Option<String> {
+    std::env::var(env_var).ok().filter(|v| !v.is_empty())
+}
 
-    let embedder = Embedder::from_dir(DIR, 0, 3, ModelLoadOverrides::default())
+#[test]
+fn test_e5_single_embedding_shape() {
+    let Some(dir) = model_dir("GTE_BENCH_E5_DIR") else { return };
+    let embedder = Embedder::from_dir(&dir, 0, 3, ModelLoadOverrides::default())
         .expect("embedder should initialize");
     let result = embedder
         .embed(vec!["query: Hello world".to_string()])
@@ -17,11 +19,9 @@ fn test_e5_single_embedding_shape() {
 }
 
 #[test]
-#[ignore = "requires ext/gte/tests/fixtures/clip/tokenizer.json and model.onnx"]
 fn test_clip_single_embedding_shape() {
-    const DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/clip");
-
-    let embedder = Embedder::from_dir(DIR, 0, 3, ModelLoadOverrides::default())
+    let Some(dir) = model_dir("GTE_BENCH_CLIP_DIR") else { return };
+    let embedder = Embedder::from_dir(&dir, 0, 3, ModelLoadOverrides::default())
         .expect("embedder should initialize");
     let result = embedder
         .embed(vec!["a photo of a cat".to_string()])
@@ -32,11 +32,9 @@ fn test_clip_single_embedding_shape() {
 }
 
 #[test]
-#[ignore = "requires ext/gte/tests/fixtures/e5/tokenizer.json and model.onnx"]
 fn test_e5_batch_embedding_shape() {
-    const DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/e5");
-
-    let embedder = Embedder::from_dir(DIR, 0, 3, ModelLoadOverrides::default())
+    let Some(dir) = model_dir("GTE_BENCH_E5_DIR") else { return };
+    let embedder = Embedder::from_dir(&dir, 0, 3, ModelLoadOverrides::default())
         .expect("embedder should initialize");
     let texts = vec![
         "query: first sentence".to_string(),
@@ -51,11 +49,9 @@ fn test_e5_batch_embedding_shape() {
 }
 
 #[test]
-#[ignore = "requires ext/gte/tests/fixtures/e5/tokenizer.json and model.onnx"]
 fn test_e5_long_input_truncation_no_error() {
-    const DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/e5");
-
-    let embedder = Embedder::from_dir(DIR, 0, 3, ModelLoadOverrides::default())
+    let Some(dir) = model_dir("GTE_BENCH_E5_DIR") else { return };
+    let embedder = Embedder::from_dir(&dir, 0, 3, ModelLoadOverrides::default())
         .expect("embedder should initialize");
     let very_long_text = "word ".repeat(1000);
     let result = embedder

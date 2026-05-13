@@ -33,9 +33,9 @@ RSpec.describe 'GTE model cache', if: GTE_E5_AVAILABLE do
   end
 
   it 'accepts 0 threads for full-throttle mode as a separate cache key' do
-    default_model = build_model(dir)
+    single_thread = build_model(dir, threads: 1)
     full_throttle = build_model(dir, threads: 0)
-    expect(default_model.object_id).not_to eq(full_throttle.object_id)
+    expect(single_thread.object_id).not_to eq(full_throttle.object_id)
   end
 
   it 'uses independent cache entries when normalize differs' do

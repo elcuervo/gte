@@ -4,6 +4,7 @@ use crate::embedder::{normalize_l2, Embedder};
 use crate::error::GteError;
 use crate::model_config::ModelLoadOverrides;
 use crate::reranker::Reranker;
+use crate::tokenizer::Tokenized;
 use magnus::{function, method, prelude::*, wrap, Error, RArray, Ruby};
 use std::os::raw::c_void;
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -32,9 +33,10 @@ pub struct RbTensor {
 // GVL-release helpers
 // ---------------------------------------------------------------------------
 
+// Tokenized holds only Vec<i64> fields — safe to send across threads.
 struct InferArgs {
     embedder: *const Embedder,
-    texts: *const Vec<String>,
+    tokenized: *const Tokenized,
     normalize: bool,
     result: Option<crate::error::Result<ndarray::Array2<f32>>>,
 }
@@ -63,8 +65,9 @@ fn panic_payload_to_string(payload: Box<dyn std::any::Any + Send>) -> String {
 unsafe extern "C" fn run_without_gvl(ptr: *mut c_void) -> *mut c_void {
     let args = &mut *(ptr as *mut InferArgs);
     let run_result = catch_unwind(AssertUnwindSafe(|| {
-        let tokenized = (*args.embedder).tokenize(&*args.texts)?;
-        let embeddings = (*args.embedder).run(&tokenized)?;
+        // Tokenization happens before GVL release (in rb_embed / rb_embed_one).
+        // Only ONNX inference runs here without the GVL.
+        let embeddings = (*args.embedder).run(&*args.tokenized)?;
         if args.normalize { Ok(normalize_l2(embeddings)) } else { Ok(embeddings) }
     }));
     args.result = Some(match run_result {
@@ -95,12 +98,12 @@ unsafe extern "C" fn run_score_without_gvl(ptr: *mut c_void) -> *mut c_void {
 fn infer_without_gvl(
     embedder: &Arc<Embedder>,
     normalize: bool,
-    texts: Vec<String>,
+    tokenized: &Tokenized,
 ) -> Result<ndarray::Array2<f32>, Error> {
     let embeddings = unsafe {
         let mut args = InferArgs {
             embedder: Arc::as_ptr(embedder),
-            texts: &texts as *const Vec<String>,
+            tokenized: tokenized as *const Tokenized,
             normalize,
             result: None,
         };
@@ -195,12 +198,14 @@ impl RbEmbedder {
 
     pub fn rb_embed(_ruby: &Ruby, rb_self: &Self, texts: RArray) -> Result<RbTensor, Error> {
         let texts: Vec<String> = texts.to_vec()?;
-        let embeddings = infer_without_gvl(&rb_self.inner, rb_self.normalize, texts)?;
+        let tokenized = rb_self.inner.tokenize(&texts).map_err(magnus::Error::from)?;
+        let embeddings = infer_without_gvl(&rb_self.inner, rb_self.normalize, &tokenized)?;
         tensor_from_array(embeddings)
     }
 
     pub fn rb_embed_one(_ruby: &Ruby, rb_self: &Self, text: String) -> Result<RbTensor, Error> {
-        let embeddings = infer_without_gvl(&rb_self.inner, rb_self.normalize, vec![text])?;
+        let tokenized = rb_self.inner.tokenize(&[text]).map_err(magnus::Error::from)?;
+        let embeddings = infer_without_gvl(&rb_self.inner, rb_self.normalize, &tokenized)?;
         tensor_from_array(embeddings)
     }
 }
@@ -292,6 +297,10 @@ impl RbTensor {
         Self::row(ruby, rb_self, 0)
     }
 
+    pub fn first_binary_f32(ruby: &Ruby, rb_self: &Self) -> Result<magnus::RString, Error> {
+        Self::row_binary_f32(ruby, rb_self, 0)
+    }
+
     pub fn row_binary_f32(
         ruby: &Ruby,
         rb_self: &Self,
@@ -354,6 +363,7 @@ pub fn register(ruby: &Ruby) -> Result<(), Error> {
     tensor_class.define_method("row", method!(RbTensor::row, 1))?;
     tensor_class.define_method("first", method!(RbTensor::first, 0))?;
     tensor_class.define_method("row_binary_f32", method!(RbTensor::row_binary_f32, 1))?;
+    tensor_class.define_method("first_binary_f32", method!(RbTensor::first_binary_f32, 0))?;
     tensor_class.define_method("to_a", method!(RbTensor::to_a, 0))?;
     tensor_class.define_method("to_binary_f32", method!(RbTensor::to_binary_f32, 0))?;
     Ok(())

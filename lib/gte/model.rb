@@ -23,5 +23,9 @@ module GTE
       when Array then embed(input)
       end
     end
+
+    def embed_binary(text)
+      embed(text).row_binary_f32(0)
+    end
   end
 end

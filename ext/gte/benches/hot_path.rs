@@ -1,4 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use gte::embedder::Embedder;
+use gte::model_config::ModelLoadOverrides;
 use gte::postprocess::{mean_pool, normalize_l2};
 use ndarray::{Array2, Array3};
 
@@ -49,5 +51,90 @@ fn bench_normalize_l2(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_mean_pool, bench_normalize_l2);
+// Replicates the fixed-padding regression: a short input (4 tokens, like "cat")
+// padded to max_length costs proportionally more in every downstream operation.
+// Siglip2 regressed from 7ms → 44ms when tokenizer.json had "padding.strategy.Fixed: 64".
+// Each row here represents: (label, actual_tokens, padded_to)
+//   batch_longest → seq = actual_tokens
+//   fixed         → seq = max_length regardless of input
+fn bench_padding_impact(c: &mut Criterion) {
+    let dim = 768;
+    let mut group = c.benchmark_group("padding_impact");
+
+    for (label, seq) in [
+        ("batch_longest/4tok", 4usize),
+        ("fixed/siglip2_max_64", 64usize),
+        ("fixed/e5_max_512", 512usize),
+    ] {
+        let hidden_states = build_hidden_states(1, seq, dim);
+        let attention_mask = build_attention_mask(1, seq);
+        group.bench_with_input(
+            BenchmarkId::from_parameter(label),
+            &seq,
+            |b, _| {
+                b.iter(|| {
+                    mean_pool(
+                        black_box(hidden_states.view()),
+                        black_box(attention_mask.view()),
+                    )
+                    .unwrap()
+                })
+            },
+        );
+    }
+    group.finish();
+}
+
+// End-to-end inference bench. Requires real ONNX models on disk. Skips
+// silently when env vars not set so default `cargo bench` stays cheap.
+//   GTE_BENCH_E5_DIR       — sentence-transformers / E5-style text model dir
+//   GTE_BENCH_SIGLIP2_DIR  — siglip2 text encoder dir
+//   GTE_BENCH_CLIP_DIR     — clip text encoder dir
+// Sweeps threads ∈ {0 (auto/all-cores), 1, 2} to validate DEFAULT_THREADS=0.
+fn bench_embedding_e2e(c: &mut Criterion) {
+    let cases = [
+        ("e5", "GTE_BENCH_E5_DIR", "query: cat", "query: ".to_string() + &"the quick brown fox jumps over the lazy dog ".repeat(20)),
+        ("siglip2", "GTE_BENCH_SIGLIP2_DIR", "cat", "a photo of ".to_string() + &"a cat sitting on a mat ".repeat(10)),
+        ("clip", "GTE_BENCH_CLIP_DIR", "cat", "a photo of ".to_string() + &"a cat sitting on a mat ".repeat(10)),
+    ];
+
+    let mut group = c.benchmark_group("embedding_e2e");
+    group.sample_size(20);
+
+    for (model_label, env_var, short_input, long_input) in cases.iter() {
+        let Some(dir) = std::env::var(env_var).ok().filter(|v| !v.is_empty()) else {
+            continue;
+        };
+
+        for &threads in &[0usize, 1, 2] {
+            let embedder = match Embedder::from_dir(&dir, threads, 3, ModelLoadOverrides::default()) {
+                Ok(e) => e,
+                Err(err) => {
+                    eprintln!("skip {model_label} threads={threads}: {err}");
+                    continue;
+                }
+            };
+
+            for (input_label, input) in [("short", short_input.to_string()), ("long", long_input.clone())] {
+                let id = BenchmarkId::from_parameter(format!("{model_label}/threads_{threads}/{input_label}"));
+                group.bench_with_input(id, &input, |b, text| {
+                    b.iter(|| {
+                        embedder
+                            .embed(black_box(vec![text.clone()]))
+                            .expect("embed succeeds")
+                    })
+                });
+            }
+        }
+    }
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    bench_mean_pool,
+    bench_normalize_l2,
+    bench_padding_impact,
+    bench_embedding_e2e
+);
 criterion_main!(benches);

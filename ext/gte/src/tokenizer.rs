@@ -113,18 +113,11 @@ pub fn parse_padding_mode_override(value: Option<&str>) -> Result<Option<Padding
 fn resolve_padding_strategy(
     padding_mode: PaddingMode,
     max_length: usize,
-    fixed_padding_length: Option<usize>,
+    _fixed_padding_length: Option<usize>,
 ) -> PaddingStrategy {
     match padding_mode {
-        PaddingMode::BatchLongest => PaddingStrategy::BatchLongest,
+        PaddingMode::BatchLongest | PaddingMode::Auto => PaddingStrategy::BatchLongest,
         PaddingMode::Fixed => PaddingStrategy::Fixed(max_length),
-        PaddingMode::Auto => {
-            if fixed_padding_length.is_some() {
-                PaddingStrategy::Fixed(max_length)
-            } else {
-                PaddingStrategy::BatchLongest
-            }
-        }
     }
 }
 
@@ -225,10 +218,25 @@ mod tests {
     }
 
     #[test]
-    fn resolve_padding_strategy_uses_fixed_for_auto_when_model_has_fixed_padding() {
-        match resolve_padding_strategy(PaddingMode::Auto, 64, Some(64)) {
-            PaddingStrategy::Fixed(64) => {}
-            other => panic!("expected Fixed(64), got {:?}", other),
-        }
+    fn resolve_padding_strategy_auto_always_uses_batch_longest() {
+        // Auto ignores fixed_padding_length from tokenizer.json — BatchLongest is
+        // always faster for inference and correct for variable-length inputs.
+        // Use PaddingMode::Fixed explicitly when fixed-length padding is required.
+        assert!(matches!(
+            resolve_padding_strategy(PaddingMode::Auto, 64, Some(64)),
+            PaddingStrategy::BatchLongest
+        ));
+        assert!(matches!(
+            resolve_padding_strategy(PaddingMode::Auto, 512, None),
+            PaddingStrategy::BatchLongest
+        ));
+    }
+
+    #[test]
+    fn resolve_padding_strategy_fixed_uses_max_length() {
+        assert!(matches!(
+            resolve_padding_strategy(PaddingMode::Fixed, 64, None),
+            PaddingStrategy::Fixed(64)
+        ));
     }
 }
