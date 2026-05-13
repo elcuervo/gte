@@ -36,12 +36,15 @@ RSpec.describe 'Threading and GVL release', if: GTE_E5_AVAILABLE do
   end
 
   it 'threads=0 single-request not slower than threads=1 on long input' do
-    long = 'query: ' + ('the quick brown fox jumps over the lazy dog ' * 20)
+    long = "query: #{'the quick brown fox jumps over the lazy dog ' * 20}"
 
     auto = GTE.config(GTE_E5_DIR) { |c| c.with(threads: 0) }
     single = GTE.config(GTE_E5_DIR) { |c| c.with(threads: 1) }
 
-    10.times { auto.embed_binary(long); single.embed_binary(long) }
+    10.times do
+      auto.embed_binary(long)
+      single.embed_binary(long)
+    end
 
     t_auto = time_concurrent(auto, 1, 30)
     t_single = time_concurrent(single, 1, 30)
@@ -49,6 +52,6 @@ RSpec.describe 'Threading and GVL release', if: GTE_E5_AVAILABLE do
     # Auto should be ≥ as fast as single-thread on compute-bound long input.
     # Generous noise margin — small model + warm caches can compress the gap.
     expect(t_auto).to be < (t_single * 1.30),
-      "auto=#{t_auto}s single-thread=#{t_single}s"
+                      "auto=#{t_auto}s single-thread=#{t_single}s"
   end
 end

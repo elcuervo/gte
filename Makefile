@@ -25,7 +25,7 @@ test: compile
 
 lint:
 	$(NIX) cargo clippy --manifest-path ext/gte/Cargo.toml --no-default-features -- -D warnings
-	$(NIX) $(BUNDLE_ENV) bundle exec rubocop
+	$(NIX) $(BUNDLE_ENV) bundle exec rubocop -A
 
 models:
 	@script/download-models
