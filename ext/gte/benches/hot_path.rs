@@ -90,7 +90,7 @@ fn bench_padding_impact(c: &mut Criterion) {
 //   GTE_BENCH_E5_DIR       — sentence-transformers / E5-style text model dir
 //   GTE_BENCH_SIGLIP2_DIR  — siglip2 text encoder dir
 //   GTE_BENCH_CLIP_DIR     — clip text encoder dir
-// Sweeps threads ∈ {0 (auto/all-cores), 1, 2} to validate DEFAULT_THREADS=0.
+// Sweeps execution providers for quick local comparison.
 fn bench_embedding_e2e(c: &mut Criterion) {
     let cases = [
         ("e5", "GTE_BENCH_E5_DIR", "query: cat", "query: ".to_string() + &"the quick brown fox jumps over the lazy dog ".repeat(20)),
@@ -106,17 +106,21 @@ fn bench_embedding_e2e(c: &mut Criterion) {
             continue;
         };
 
-        for &threads in &[0usize, 1, 2] {
-            let embedder = match Embedder::from_dir(&dir, threads, 3, ModelLoadOverrides::default()) {
+        for provider in ["cpu", "xnnpack"] {
+            let overrides = ModelLoadOverrides {
+                execution_providers: Some(provider),
+                ..ModelLoadOverrides::default()
+            };
+            let embedder = match Embedder::from_dir(&dir, 3, overrides) {
                 Ok(e) => e,
                 Err(err) => {
-                    eprintln!("skip {model_label} threads={threads}: {err}");
+                    eprintln!("skip {model_label} provider={provider}: {err}");
                     continue;
                 }
             };
 
             for (input_label, input) in [("short", short_input.to_string()), ("long", long_input.clone())] {
-                let id = BenchmarkId::from_parameter(format!("{model_label}/threads_{threads}/{input_label}"));
+                let id = BenchmarkId::from_parameter(format!("{model_label}/{provider}/{input_label}"));
                 group.bench_with_input(id, &input, |b, text| {
                     b.iter(|| {
                         embedder

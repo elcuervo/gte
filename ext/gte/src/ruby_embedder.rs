@@ -4,7 +4,6 @@ use crate::embedder::{normalize_l2, Embedder};
 use crate::error::GteError;
 use crate::model_config::ModelLoadOverrides;
 use crate::reranker::Reranker;
-use crate::tokenizer::Tokenized;
 use magnus::{function, method, prelude::*, wrap, Error, RArray, Ruby};
 use std::os::raw::c_void;
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -33,10 +32,9 @@ pub struct RbTensor {
 // GVL-release helpers
 // ---------------------------------------------------------------------------
 
-// Tokenized holds only Vec<i64> fields — safe to send across threads.
 struct InferArgs {
     embedder: *const Embedder,
-    tokenized: *const Tokenized,
+    texts: *const Vec<String>,
     normalize: bool,
     result: Option<crate::error::Result<ndarray::Array2<f32>>>,
 }
@@ -45,7 +43,8 @@ unsafe impl Send for InferArgs {}
 
 struct ScoreArgs {
     reranker: *const Reranker,
-    pairs: *const Vec<(String, String)>,
+    query: *const String,
+    candidates: *const Vec<String>,
     apply_sigmoid: bool,
     result: Option<crate::error::Result<Vec<f32>>>,
 }
@@ -62,12 +61,11 @@ fn panic_payload_to_string(payload: Box<dyn std::any::Any + Send>) -> String {
     }
 }
 
-unsafe extern "C" fn run_without_gvl(ptr: *mut c_void) -> *mut c_void {
+unsafe extern "C" fn run_embed_without_gvl(ptr: *mut c_void) -> *mut c_void {
     let args = &mut *(ptr as *mut InferArgs);
     let run_result = catch_unwind(AssertUnwindSafe(|| {
-        // Tokenization happens before GVL release (in rb_embed / rb_embed_one).
-        // Only ONNX inference runs here without the GVL.
-        let embeddings = (*args.embedder).run(&*args.tokenized)?;
+        // Full embedding path (tokenization + inference) runs without the GVL.
+        let embeddings = (*args.embedder).embed_ref(&*args.texts)?;
         if args.normalize { Ok(normalize_l2(embeddings)) } else { Ok(embeddings) }
     }));
     args.result = Some(match run_result {
@@ -83,7 +81,7 @@ unsafe extern "C" fn run_without_gvl(ptr: *mut c_void) -> *mut c_void {
 unsafe extern "C" fn run_score_without_gvl(ptr: *mut c_void) -> *mut c_void {
     let args = &mut *(ptr as *mut ScoreArgs);
     let run_result = catch_unwind(AssertUnwindSafe(|| {
-        (*args.reranker).score_pairs(&*args.pairs, args.apply_sigmoid)
+        (*args.reranker).score(&*args.query, &*args.candidates, args.apply_sigmoid)
     }));
     args.result = Some(match run_result {
         Ok(result) => result,
@@ -98,17 +96,17 @@ unsafe extern "C" fn run_score_without_gvl(ptr: *mut c_void) -> *mut c_void {
 fn infer_without_gvl(
     embedder: &Arc<Embedder>,
     normalize: bool,
-    tokenized: &Tokenized,
+    texts: Vec<String>,
 ) -> Result<ndarray::Array2<f32>, Error> {
     let embeddings = unsafe {
         let mut args = InferArgs {
             embedder: Arc::as_ptr(embedder),
-            tokenized: tokenized as *const Tokenized,
+            texts: &texts as *const Vec<String>,
             normalize,
             result: None,
         };
         rb_sys::rb_thread_call_without_gvl(
-            Some(run_without_gvl),
+            Some(run_embed_without_gvl),
             &mut args as *mut InferArgs as *mut c_void,
             None,
             std::ptr::null_mut(),
@@ -125,13 +123,15 @@ fn infer_without_gvl(
 
 fn score_without_gvl(
     reranker: &Arc<Reranker>,
-    pairs: Vec<(String, String)>,
+    query: String,
+    candidates: Vec<String>,
     apply_sigmoid: bool,
 ) -> Result<Vec<f32>, Error> {
     let scores = unsafe {
         let mut args = ScoreArgs {
             reranker: Arc::as_ptr(reranker),
-            pairs: &pairs as *const Vec<(String, String)>,
+            query: &query as *const String,
+            candidates: &candidates as *const Vec<String>,
             apply_sigmoid,
             result: None,
         };
@@ -197,14 +197,12 @@ impl RbEmbedder {
 
     pub fn rb_embed(_ruby: &Ruby, rb_self: &Self, texts: RArray) -> Result<RbTensor, Error> {
         let texts: Vec<String> = texts.to_vec()?;
-        let tokenized = rb_self.inner.tokenize(&texts).map_err(magnus::Error::from)?;
-        let embeddings = infer_without_gvl(&rb_self.inner, rb_self.normalize, &tokenized)?;
+        let embeddings = infer_without_gvl(&rb_self.inner, rb_self.normalize, texts)?;
         tensor_from_array(embeddings)
     }
 
     pub fn rb_embed_one(_ruby: &Ruby, rb_self: &Self, text: String) -> Result<RbTensor, Error> {
-        let tokenized = rb_self.inner.tokenize(&[text]).map_err(magnus::Error::from)?;
-        let embeddings = infer_without_gvl(&rb_self.inner, rb_self.normalize, &tokenized)?;
+        let embeddings = infer_without_gvl(&rb_self.inner, rb_self.normalize, vec![text])?;
         tensor_from_array(embeddings)
     }
 }
@@ -245,8 +243,7 @@ impl RbReranker {
         candidates: RArray,
     ) -> Result<RArray, Error> {
         let candidates: Vec<String> = candidates.to_vec()?;
-        let pairs: Vec<(String, String)> = candidates.into_iter().map(|c| (query.clone(), c)).collect();
-        let scores = score_without_gvl(&rb_self.inner, pairs, rb_self.sigmoid)?;
+        let scores = score_without_gvl(&rb_self.inner, query, candidates, rb_self.sigmoid)?;
         let out = ruby.ary_new_capa(scores.len());
         for score in scores {
             out.push(score)?;

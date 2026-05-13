@@ -10,7 +10,7 @@ require 'gte'
 ROOT = File.expand_path('..', __dir__)
 DEFAULT_CONCURRENCY = 16
 DEFAULT_ITERATIONS = 48
-THREAD_CANDIDATES = [1, 2, 3, 4, 6, 8].freeze
+POOL_CAP_CANDIDATES = [1, 2, 4, 8].freeze
 
 MODELS = {
   'e5' => {
@@ -29,6 +29,10 @@ MODELS = {
     'request_template' => 'a siglip prompt %{idx}'
   }
 }.freeze
+
+def resolve_model_dir(env_var)
+  ENV.fetch(env_var, nil)
+end
 
 def percentile(sorted, p)
   idx = (sorted.length * p).floor
@@ -68,13 +72,13 @@ end
 options = {
   iterations: DEFAULT_ITERATIONS,
   concurrency: DEFAULT_CONCURRENCY,
-  candidates: THREAD_CANDIDATES
+  candidates: POOL_CAP_CANDIDATES
 }
 
 OptionParser.new do |opts|
   opts.on('--iterations N', Integer) { |value| options[:iterations] = value }
   opts.on('--concurrency N', Integer) { |value| options[:concurrency] = value }
-  opts.on('--threads LIST', String) do |value|
+  opts.on('--pool-cap LIST', String) do |value|
     options[:candidates] = value.split(',').map(&:to_i).select(&:positive?).uniq
   end
 end.parse!(ARGV)
@@ -84,28 +88,30 @@ if options[:iterations] <= 0 || options[:concurrency] <= 0 || options[:candidate
   exit 1
 end
 
-puts "Thread sweep (puma-like): concurrency=#{options[:concurrency]} iterations=#{options[:iterations]}"
+puts "Session-pool-cap sweep (puma-like): concurrency=#{options[:concurrency]} iterations=#{options[:iterations]}"
 
 MODELS.each do |key, cfg|
-  dir = ENV.fetch(cfg.fetch('env_var'), nil)
+  dir = resolve_model_dir(cfg.fetch('env_var'))
   next if dir.nil? || dir.empty? || !Dir.exist?(dir)
 
   puts "\n#{cfg.fetch('label')} (#{key})"
   requests = Array.new(options[:iterations]) { |i| format(cfg.fetch('request_template'), idx: i) }
 
   best = nil
-  options[:candidates].each do |threads|
-    model = GTE.config(File.expand_path(dir, ROOT)) { |config| config.with(threads: threads) }
+  options[:candidates].each do |cap|
+    ENV['GTE_SESSION_POOL_CAP'] = cap.to_s
+    model = GTE.config(File.expand_path(dir, ROOT))
     (options[:concurrency] * 2).times { |i| model.embed(format(cfg.fetch('request_template'), idx: "warmup-#{i}")) }
 
     stats = run_once(model, requests, options[:concurrency])
-    puts format('  threads=%<t>d median=%<m>.2fms p95=%<p95>.2fms p99=%<p99>.2fms',
-                t: threads,
+    puts format('  pool_cap=%<t>d median=%<m>.2fms p95=%<p95>.2fms p99=%<p99>.2fms',
+                t: cap,
                 m: stats.fetch('median_ms'),
                 p95: stats.fetch('p95_ms'),
                 p99: stats.fetch('p99_ms'))
-    best = [threads, stats] if best.nil? || stats.fetch('p95_ms') < best[1].fetch('p95_ms')
+    best = [cap, stats] if best.nil? || stats.fetch('p95_ms') < best[1].fetch('p95_ms')
   end
+  ENV.delete('GTE_SESSION_POOL_CAP')
 
-  puts format('  best: threads=%<t>d p95=%<p95>.2fms', t: best[0], p95: best[1].fetch('p95_ms'))
+  puts format('  best: pool_cap=%<t>d p95=%<p95>.2fms', t: best[0], p95: best[1].fetch('p95_ms'))
 end

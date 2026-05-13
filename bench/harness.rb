@@ -98,7 +98,7 @@ module Bench
         'git_sha' => `git -C #{@root} rev-parse --short HEAD`.strip,
         'scenarios' => @scenarios,
         'thresholds' => @thresholds.merge(
-          'goal_metric' => 'response_time_p95',
+          'goal_metric' => 'response_time_p95_and_service_time_p95',
           'sample_aggregation' => 'median'
         ),
         'adapters' => adapter_metadata,
@@ -283,7 +283,7 @@ module Bench
       @batch_options.fetch('batch_sizes').each do |size|
         texts = Array.new(size) { |index| "benchmark text #{index} for #{key}" }
         summaries = benchmark_batch_iterations(instances, texts, @batch_options.fetch('iterations'))
-        comparisons = competitor_ratios(summaries, %w[median_ms], 'median_ms')
+        comparisons = competitor_ratios(summaries, %w[median_ms], 'median_ms', 1.0)
 
         puts format('    batch=%<size>3d %<summary>s',
                     size: size,
@@ -389,19 +389,23 @@ module Bench
     end
 
     def puma_gate(by_adapter)
-      comparisons = competitor_ratios(by_adapter, %w[aggregate response_time p95_ms], 'response_time.p95_ms')
-      failures = comparisons.each_with_object([]) do |(name, comparison), out|
-        next if comparison.fetch('pass')
-
-        out << "#{name} response_time.p95_ms ratio #{comparison.fetch('ratio_over_gte').round(2)}x < #{@thresholds.fetch('min_p95_ratio')}x"
-      end
-
+      response = metric_gate(
+        by_adapter: by_adapter,
+        metric_path: %w[aggregate response_time p95_ms],
+        metric_label: 'response_time.p95_ms',
+        threshold: @thresholds.fetch('min_p95_ratio')
+      )
+      service = metric_gate(
+        by_adapter: by_adapter,
+        metric_path: %w[aggregate service_time p95_ms],
+        metric_label: 'service_time.p95_ms',
+        threshold: @thresholds.fetch('min_service_ratio', 1.0)
+      )
+      failures = response.fetch('failures') + service.fetch('failures')
       {
-        'metric' => 'response_time.p95_ms',
-        'threshold_ratio' => @thresholds.fetch('min_p95_ratio'),
-        'minimum_ratio_over_gte' => comparisons.values.map { |comparison| comparison.fetch('ratio_over_gte') }.min,
+        'response' => response,
+        'service' => service,
         'pass' => failures.empty?,
-        'comparisons' => comparisons,
         'failures' => failures
       }
     end
@@ -416,7 +420,14 @@ module Bench
                     rps: aggregate.fetch('throughput_rps'))
       end
 
-      gate.fetch('comparisons').each do |name, comparison|
+      gate.fetch('response').fetch('comparisons').each do |name, comparison|
+        puts format('    ratio %<name>-12s %<metric>s=%<ratio>.2fx (%<status>s)',
+                    name: name,
+                    metric: comparison.fetch('metric'),
+                    ratio: comparison.fetch('ratio_over_gte'),
+                    status: comparison.fetch('pass') ? 'PASS' : 'FAIL')
+      end
+      gate.fetch('service').fetch('comparisons').each do |name, comparison|
         puts format('    ratio %<name>-12s %<metric>s=%<ratio>.2fx (%<status>s)',
                     name: name,
                     metric: comparison.fetch('metric'),
@@ -425,7 +436,23 @@ module Bench
       end
     end
 
-    def competitor_ratios(results_by_adapter, metric_path, metric_label)
+    def metric_gate(by_adapter:, metric_path:, metric_label:, threshold:)
+      comparisons = competitor_ratios(by_adapter, metric_path, metric_label, threshold)
+      failures = comparisons.each_with_object([]) do |(name, comparison), out|
+        next if comparison.fetch('pass')
+
+        out << "#{name} #{metric_label} ratio #{comparison.fetch('ratio_over_gte').round(2)}x < #{threshold}x"
+      end
+      {
+        'metric' => metric_label,
+        'threshold_ratio' => threshold,
+        'minimum_ratio_over_gte' => comparisons.values.map { |comparison| comparison.fetch('ratio_over_gte') }.min,
+        'comparisons' => comparisons,
+        'failures' => failures
+      }
+    end
+
+    def competitor_ratios(results_by_adapter, metric_path, metric_label, threshold)
       gte_metric = dig_metric(results_by_adapter.fetch('gte'), metric_path)
 
       results_by_adapter.each_with_object({}) do |(name, payload), out|
@@ -438,7 +465,7 @@ module Bench
           'gte_value' => gte_metric,
           'competitor_value' => competitor_metric,
           'ratio_over_gte' => ratio,
-          'pass' => ratio >= @thresholds.fetch('min_p95_ratio')
+          'pass' => ratio >= threshold
         }
       end
     end

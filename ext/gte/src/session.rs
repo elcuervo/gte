@@ -44,9 +44,16 @@ pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Res
 // ---------------------------------------------------------------------------
 
 fn pool_capacity() -> usize {
-    std::thread::available_parallelism()
+    let available = std::thread::available_parallelism()
         .map(|n| n.get())
-        .unwrap_or(1)
+        .unwrap_or(1);
+    parse_pool_capacity_override().map_or(available, |cap| cap.min(available).max(1))
+}
+
+fn parse_pool_capacity_override() -> Option<usize> {
+    let raw = std::env::var("GTE_SESSION_POOL_CAP").ok()?;
+    let parsed = raw.trim().parse::<usize>().ok()?;
+    (parsed > 0).then_some(parsed)
 }
 
 pub struct SessionPool {
@@ -255,7 +262,10 @@ mod tests {
     use crate::model_config::{ExtractorMode, ModelConfig, PaddingMode};
     use ndarray::{array, ArrayView2};
 
-    use super::{extract_embeddings, parse_provider_registrations, resolve_provider_order_with_env};
+    use super::{
+        extract_embeddings, parse_pool_capacity_override, parse_provider_registrations,
+        resolve_provider_order_with_env,
+    };
 
     fn test_config(mode: ExtractorMode) -> ModelConfig {
         ModelConfig {
@@ -310,6 +320,33 @@ mod tests {
             "coreml"
         );
         assert_eq!(resolve_provider_order_with_env(None, None), "cpu");
+    }
+
+    #[test]
+    fn parse_pool_capacity_override_uses_positive_integer_only() {
+        unsafe {
+            std::env::remove_var("GTE_SESSION_POOL_CAP");
+        }
+        assert_eq!(parse_pool_capacity_override(), None);
+
+        unsafe {
+            std::env::set_var("GTE_SESSION_POOL_CAP", "0");
+        }
+        assert_eq!(parse_pool_capacity_override(), None);
+
+        unsafe {
+            std::env::set_var("GTE_SESSION_POOL_CAP", "4");
+        }
+        assert_eq!(parse_pool_capacity_override(), Some(4));
+
+        unsafe {
+            std::env::set_var("GTE_SESSION_POOL_CAP", "abc");
+        }
+        assert_eq!(parse_pool_capacity_override(), None);
+
+        unsafe {
+            std::env::remove_var("GTE_SESSION_POOL_CAP");
+        }
     }
 
     #[test]

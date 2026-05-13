@@ -13,6 +13,7 @@ DEFAULT_RUN_SAMPLES = 3
 DEFAULT_MAX_ABS = 1e-5
 DEFAULT_MIN_COS = 0.99999
 DEFAULT_MIN_P95_RATIO = 1.0
+DEFAULT_MIN_SERVICE_RATIO = 0.0
 
 options = {
   output: Bench::MultiRuntimeHarness.default_output_path('puma_compare'),
@@ -22,6 +23,7 @@ options = {
   max_abs: DEFAULT_MAX_ABS,
   min_cos: DEFAULT_MIN_COS,
   min_p95_ratio: DEFAULT_MIN_P95_RATIO,
+  min_service_ratio: DEFAULT_MIN_SERVICE_RATIO,
   exec_providers: 'cpu',
   python_worker_pool: 1,
   skip_python: false,
@@ -36,6 +38,7 @@ OptionParser.new do |opts|
   opts.on('--max-abs FLOAT', Float) { |value| options[:max_abs] = value }
   opts.on('--min-cos FLOAT', Float) { |value| options[:min_cos] = value }
   opts.on('--min-p95-ratio FLOAT', Float) { |value| options[:min_p95_ratio] = value }
+  opts.on('--min-service-ratio FLOAT', Float) { |value| options[:min_service_ratio] = value }
   opts.on('--exec-providers LIST') { |value| options[:exec_providers] = value.strip }
   opts.on('--python-worker-pool N', Integer) { |value| options[:python_worker_pool] = value }
   opts.on('--skip-python') { options[:skip_python] = true }
@@ -79,7 +82,7 @@ puts "concurrency: #{options[:concurrency]}"
 puts "sample runs: #{options[:run_samples]} (median aggregation)"
 puts "execution providers: #{options[:exec_providers]}"
 puts "python adapter: #{options[:skip_python] ? 'disabled' : "enabled (pool=#{options[:python_worker_pool]})"}"
-puts "thresholds: max_abs<=#{options[:max_abs]} min_cos>=#{options[:min_cos]} response_p95_ratio>=#{options[:min_p95_ratio]}x"
+puts "thresholds: max_abs<=#{options[:max_abs]} min_cos>=#{options[:min_cos]} response_p95_ratio>=#{options[:min_p95_ratio]}x service_p95_ratio>=#{options[:min_service_ratio]}x"
 
 harness = Bench::MultiRuntimeHarness.new(
   models: models,
@@ -88,7 +91,8 @@ harness = Bench::MultiRuntimeHarness.new(
   thresholds: {
     'max_abs' => options[:max_abs],
     'min_cos' => options[:min_cos],
-    'min_p95_ratio' => options[:min_p95_ratio]
+    'min_p95_ratio' => options[:min_p95_ratio],
+    'min_service_ratio' => options[:min_service_ratio]
   },
   puma: {
     'iterations' => options[:iterations],
@@ -115,13 +119,13 @@ end
 
 if result.goal_failures.any?
   if options[:enforce_goal]
-    warn 'FAIL: response-time p95 goal not met'
+    warn 'FAIL: performance goals not met'
     result.goal_failures.each { |failure| warn "  - #{failure}" }
     exit 1
   end
-  warn 'WARN: response-time p95 goal not met'
+  warn 'WARN: performance goals not met'
   result.goal_failures.each { |failure| warn "  - #{failure}" }
   exit 0
 end
 
-puts 'PASS: correctness and response-time p95 goals satisfied'
+puts 'PASS: correctness, response-time p95, and service-time p95 goals satisfied'

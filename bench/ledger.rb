@@ -13,7 +13,7 @@ module Bench
     DEFAULT_RUNS_PATH = File.expand_path('RUNS.md', ROOT)
     DEFAULT_TOLERANCE = 0.15
     EXPECTED_MODELS = %w[e5 clip siglip2].freeze
-    GOAL_METRIC = 'response_time_p95'
+    GOAL_METRIC = 'response_time_p95_and_service_time_p95'
 
     class LedgerError < StandardError; end
 
@@ -64,15 +64,22 @@ module Bench
     def model_metrics(result, key)
       scenario = result.fetch('models').fetch(key).fetch('scenarios').fetch('puma_like_single_request')
       gte = scenario.fetch('by_adapter').fetch('gte').fetch('aggregate')
-      competitors = scenario.fetch('gate').fetch('comparisons')
+      gate = scenario.fetch('gate')
+      response_gate = gate.fetch('response', gate)
+      service_gate = gate.fetch('service', {
+                                  'minimum_ratio_over_gte' => nil,
+                                  'comparisons' => {}
+                                })
 
       {
         'gte_response_p95_ms' => gte.fetch('response_time').fetch('p95_ms'),
         'gte_response_median_ms' => gte.fetch('response_time').fetch('median_ms'),
         'gte_service_p95_ms' => gte.fetch('service_time').fetch('p95_ms'),
         'gte_throughput_rps' => gte.fetch('throughput_rps'),
-        'minimum_ratio_p95' => scenario.fetch('gate').fetch('minimum_ratio_over_gte'),
-        'competitors' => competitors
+        'minimum_ratio_p95' => response_gate.fetch('minimum_ratio_over_gte'),
+        'minimum_service_ratio_p95' => service_gate.fetch('minimum_ratio_over_gte'),
+        'competitors' => response_gate.fetch('comparisons'),
+        'service_competitors' => service_gate.fetch('comparisons')
       }
     end
 
@@ -81,15 +88,19 @@ module Bench
       raise LedgerError, "result missing expected models: #{missing.join(', ')}" unless missing.empty?
 
       min_ratio = result.fetch('thresholds', {}).fetch('min_p95_ratio', 1.0).to_f
+      min_service_ratio = result.fetch('thresholds', {}).fetch('min_service_ratio', 1.0).to_f
       metrics = {}
       regressions = {}
       ratio_pass = true
+      service_ratio_pass = true
       regression_pass = true
 
       EXPECTED_MODELS.each do |key|
         current = model_metrics(result, key)
         metrics[key] = current
         ratio_pass &&= current.fetch('minimum_ratio_p95') >= min_ratio
+        service_minimum = current.fetch('minimum_service_ratio_p95')
+        service_ratio_pass &&= service_minimum.nil? || service_minimum >= min_service_ratio
 
         next unless previous
 
@@ -124,10 +135,12 @@ module Bench
           'goal_metric' => GOAL_METRIC,
           'sample_aggregation' => result.dig('thresholds', 'sample_aggregation') || 'median',
           'min_p95_ratio' => min_ratio,
+          'min_service_ratio' => min_service_ratio,
           'regression_tolerance' => tolerance
         },
         'status' => {
           'goal_response_p95_ratio_all_models' => ratio_pass,
+          'goal_service_p95_ratio_all_models' => service_ratio_pass,
           'regression_vs_previous' => previous ? regression_pass : true,
           'regression_baseline' => previous ? 'previous_run' : 'none'
         },
@@ -150,13 +163,15 @@ module Bench
         MD
       end
 
-      goal_status = entry.dig('status', 'goal_response_p95_ratio_all_models') ? 'PASS' : 'FAIL'
+      response_goal_status = entry.dig('status', 'goal_response_p95_ratio_all_models') ? 'PASS' : 'FAIL'
+      service_goal_status = entry.dig('status', 'goal_service_p95_ratio_all_models') ? 'PASS' : 'FAIL'
       regression_status = entry.dig('status', 'regression_vs_previous') ? 'PASS' : 'FAIL'
 
       File.open(runs_path, 'a') do |file|
         file.puts
         file.puts "## #{entry.fetch('generated_at')} | v#{entry.fetch('gem_version')} | #{entry.fetch('git_sha')}"
-        file.puts "- Goal (response-time p95 ratio across enabled competitors): #{goal_status}"
+        file.puts "- Goal (response-time p95 ratio across enabled competitors): #{response_goal_status}"
+        file.puts "- Goal (service-time p95 ratio across enabled competitors): #{service_goal_status}"
         file.puts "- Regression vs previous run (GTE response-time p95 <= +#{(entry.dig('thresholds', 'regression_tolerance') * 100).round(1)}%): #{regression_status}"
         file.puts
         file.puts '```json'
@@ -173,6 +188,9 @@ module Bench
       failures = []
       unless entry.dig('status', 'goal_response_p95_ratio_all_models')
         failures << 'goal failure: one or more models lost the response-time p95 comparison'
+      end
+      unless entry.dig('status', 'goal_service_p95_ratio_all_models')
+        failures << 'goal failure: one or more models lost the service-time p95 comparison'
       end
 
       unless goal_only || entry.dig('status', 'regression_vs_previous')

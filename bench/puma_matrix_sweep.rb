@@ -13,7 +13,6 @@ DEFAULT_OUTPUT_DIR = File.expand_path('results', __dir__)
 DEFAULT_ITERATIONS = 80
 DEFAULT_CONCURRENCY = 16
 DEFAULT_RUN_SAMPLES = 3
-DEFAULT_THREADS = 'auto,1,2'
 DEFAULT_PROVIDERS = 'cpu;xnnpack,coreml'
 MODELS = %w[e5 clip siglip2].freeze
 
@@ -22,21 +21,16 @@ def default_output_path
   File.join(DEFAULT_OUTPUT_DIR, "puma_matrix_#{timestamp}.json")
 end
 
-def parse_thread_values(raw)
-  raw.split(',').map(&:strip).reject(&:empty?).map do |entry|
-    next 'auto' if entry == 'auto'
-
-    num = Integer(entry, 10)
-    raise ArgumentError, "invalid thread value '#{entry}' (must be auto or positive integer)" if num <= 0
-
-    num
-  rescue ArgumentError
-    raise ArgumentError, "invalid thread value '#{entry}' (must be auto or positive integer)"
-  end.uniq
-end
-
 def parse_provider_values(raw)
   raw.split(';').map(&:strip).reject(&:empty?).uniq
+end
+
+def resolved_model_env(root)
+  {
+    'GTE_MODEL_DIR' => ENV['GTE_MODEL_DIR'] || File.expand_path('models/e5', root),
+    'GTE_CLIP_DIR' => ENV['GTE_CLIP_DIR'] || File.expand_path('models/clip', root),
+    'GTE_SIGLIP2_DIR' => ENV['GTE_SIGLIP2_DIR'] || File.expand_path('models/siglip2', root)
+  }
 end
 
 def model_stats(result, model)
@@ -57,7 +51,6 @@ options = {
   iterations: DEFAULT_ITERATIONS,
   concurrency: DEFAULT_CONCURRENCY,
   run_samples: DEFAULT_RUN_SAMPLES,
-  threads: parse_thread_values(DEFAULT_THREADS),
   providers: parse_provider_values(DEFAULT_PROVIDERS)
 }
 
@@ -67,7 +60,6 @@ OptionParser.new do |opts|
   opts.on('--iterations N', Integer) { |value| options[:iterations] = value }
   opts.on('--concurrency N', Integer) { |value| options[:concurrency] = value }
   opts.on('--runs N', Integer) { |value| options[:run_samples] = value }
-  opts.on('--threads LIST', String) { |value| options[:threads] = parse_thread_values(value) }
   opts.on('--providers LIST', String) { |value| options[:providers] = parse_provider_values(value) }
 end.parse!(ARGV)
 
@@ -76,16 +68,14 @@ if options[:iterations] <= 0 || options[:concurrency] <= 0 || options[:run_sampl
   exit 1
 end
 
-if options[:threads].empty? || options[:providers].empty?
-  warn('threads and providers must contain at least one value')
+if options[:providers].empty?
+  warn('providers must contain at least one value')
   exit 1
 end
 
 FileUtils.mkdir_p(options[:tmp_dir])
 
-configs = options[:providers].flat_map do |provider|
-  options[:threads].map { |threads| [provider, threads] }
-end
+configs = options[:providers]
 
 puts 'Puma matrix sweep'
 puts '=' * 60
@@ -93,12 +83,12 @@ puts "iterations/model: #{options[:iterations]}"
 puts "concurrency: #{options[:concurrency]}"
 puts "sample runs: #{options[:run_samples]}"
 puts "providers: #{options[:providers].join(', ')}"
-puts "threads: #{options[:threads].join(', ')}"
 
 runs = []
+model_env = resolved_model_env(ROOT)
 
-configs.each_with_index do |(provider, threads), idx|
-  label = "cfg#{idx + 1}: providers=#{provider} threads=#{threads}"
+configs.each_with_index do |provider, idx|
+  label = "cfg#{idx + 1}: providers=#{provider}"
   output_path = File.join(
     options[:tmp_dir],
     "puma_matrix_run_#{Time.now.utc.strftime('%Y%m%dT%H%M%S')}_#{idx + 1}.json"
@@ -112,16 +102,14 @@ configs.each_with_index do |(provider, threads), idx|
     '--runs', options[:run_samples].to_s
   ]
   cmd += ['--exec-providers', provider] unless provider == 'cpu'
-  cmd += ['--gte-threads', threads.to_s] unless threads == 'auto'
 
   puts "\n#{label}"
-  stdout, stderr, status = Open3.capture3(*cmd)
+  stdout, stderr, status = Open3.capture3(model_env, *cmd)
   print stdout unless stdout.empty?
   warn stderr unless stderr.empty?
 
   run = {
     'provider' => provider,
-    'threads' => threads,
     'output_path' => output_path,
     'command' => cmd,
     'status' => status.success? ? 'ok' : 'failed'
@@ -152,7 +140,6 @@ MODELS.each do |model|
 
   best_by_model[model] = {
     'provider' => best.fetch('provider'),
-    'threads' => best.fetch('threads'),
     'gte_response_p95_ms' => model_p95(best.fetch('result'), model),
     'response_ratio_p95' => model_ratio(best.fetch('result'), model),
     'source_output_path' => best.fetch('output_path')
@@ -168,11 +155,10 @@ summary = {
   'concurrency' => options[:concurrency],
   'run_samples' => options[:run_samples],
   'config_space' => {
-    'providers' => options[:providers],
-    'threads' => options[:threads]
+    'providers' => options[:providers]
   },
   'runs' => runs.map do |r|
-    slim = r.slice('provider', 'threads', 'status', 'output_path')
+    slim = r.slice('provider', 'status', 'output_path')
     slim['models'] = r['models'] if r['models']
     slim['error'] = r['error'] if r['error']
     slim

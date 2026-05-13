@@ -33,10 +33,6 @@ raw_model = GTE.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
   config.with(normalize: false)
 end
 
-single_thread = GTE.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
-  config.with(threads: 1)
-end
-
 custom = GTE.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
   config.with(
     output_tensor: "last_hidden_state",
@@ -50,7 +46,6 @@ end
 Config fields and defaults:
 
 - `model_dir`: absolute path to model directory
-- `threads`: `1` (default tuned for p95 latency; use `0` for ONNX Runtime auto-thread mode)
 - `optimization_level`: `3`
 - `model_name`: `nil`
 - `normalize`: `true` (L2 normalization at Ruby-facing API)
@@ -68,7 +63,7 @@ Low-level embedder setup (without model cache):
 
 ```ruby
 embedder = GTE::Embedder.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
-  config.with(threads: 1, execution_providers: "cpu")
+  config.with(execution_providers: "cpu")
 end
 ```
 
@@ -78,7 +73,7 @@ Use `GTE::Reranker.config(model_dir)` for cross-encoder reranking.
 
 ```ruby
 reranker = GTE::Reranker.config(ENV.fetch("GTE_RERANK_DIR")) do |config|
-  config.with(sigmoid: true, threads: 1)
+  config.with(sigmoid: true)
 end
 
 query = "how to train a neural network?"
@@ -102,7 +97,6 @@ ranked = reranker.rerank(query: query, candidates: candidates)
 Reranker config fields and defaults:
 
 - `model_dir`: absolute path to model directory
-- `threads`: `1`
 - `optimization_level`: `3`
 - `model_name`: `nil`
 - `sigmoid`: `false` (set `true` if you want bounded [0,1] style scores)
@@ -110,6 +104,11 @@ Reranker config fields and defaults:
 - `max_length`: `nil`
 - `padding`: `nil` (auto; accepts `auto`, `batch_longest`, `fixed`)
 - `execution_providers`: `nil`
+
+Session pool sizing:
+
+- `GTE_SESSION_POOL_CAP`: optional positive integer cap for internal ONNX session pool size.
+- Unset by default; runtime uses available CPU parallelism.
 
 ## Runtime + Result Examples
 
@@ -185,7 +184,7 @@ nix develop -c bundle exec ruby bench/memory_probe.rb --compare-pure
 
 - `make bench`: Puma-like single-request comparison at concurrency `16`
 - `rake bench:pure_compare`: batch amortization comparison
-- `rake bench:matrix_sweep`: GTE provider/thread sweep using the shared result schema
+- `rake bench:matrix_sweep`: GTE provider sweep using the shared result schema
 - Optional Python comparisons use `bench/python_onnxruntime.py` and are skipped automatically if local dependencies are unavailable.
 
 To run benchmark + append a `RUNS.md` entry + enforce goal checks:

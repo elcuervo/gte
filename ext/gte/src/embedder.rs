@@ -116,7 +116,11 @@ impl Embedder {
     }
 
     pub fn embed(&self, texts: Vec<String>) -> Result<Array2<f32>> {
-        let tokenized = self.tokenize(&texts)?;
+        self.embed_ref(&texts)
+    }
+
+    pub fn embed_ref(&self, texts: &[String]) -> Result<Array2<f32>> {
+        let tokenized = self.tokenize(texts)?;
         self.run(&tokenized)
     }
 
