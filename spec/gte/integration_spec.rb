@@ -206,14 +206,17 @@ RSpec.describe 'Integration' do
       expect(norm).to be_within(1e-3).of(1.0)
     end
 
-    it 'matches fixed-length pooler preprocessing used by Siglip2 text tokenization' do
+    it 'matches batch-longest pooler preprocessing used by Siglip2 text tokenization' do
+      # PaddingMode::Auto now uses BatchLongest regardless of tokenizer.json
+      # (see padding_regression_test.rs). gte output therefore matches the
+      # unpadded baseline, not the fixed-pad-to-64 baseline.
       text = 'hello'
       gte = siglip2_pooler.embed(text).row(0)
       fixed = direct_siglip2_pooler_output(text, fixed_padding: true)
       unpadded = direct_siglip2_pooler_output(text, fixed_padding: false)
 
-      expect(cosine_similarity(gte, fixed)).to be >= 0.999
-      expect(cosine_similarity(gte, unpadded)).to be < 0.95
+      expect(cosine_similarity(gte, unpadded)).to be >= 0.999
+      expect(cosine_similarity(gte, fixed)).to be < 0.95
     end
 
     it 'does not fail on long text inputs' do
