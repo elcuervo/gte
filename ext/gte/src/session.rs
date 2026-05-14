@@ -7,7 +7,7 @@ use ndarray::{Array2, ArrayView2, ArrayViewD, Ix2};
 use ort::execution_providers::{
     CoreMLExecutionProvider, ExecutionProviderDispatch, XNNPACKExecutionProvider,
 };
-use ort::session::Session;
+use ort::session::{OutputSelector, RunOptions, Session};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Condvar, Mutex};
@@ -216,8 +216,11 @@ pub fn run_session(
     config: &ModelConfig,
 ) -> Result<Array2<f32>> {
     let input_tensors = InputTensors::from_tokenized(tokenized, config.with_attention_mask)?;
+    let run_opts = RunOptions::new()
+        .map_err(|e| GteError::Ort(e.to_string()))?
+        .with_outputs(OutputSelector::no_default().with(config.output_tensor.as_str()));
     let outputs = session
-        .run(input_tensors.inputs)
+        .run_with_options(input_tensors.inputs, &run_opts)
         .map_err(|e| GteError::Ort(e.to_string()))?;
     let array = extract_output_tensor(&outputs, config.output_tensor.as_str())?;
 
