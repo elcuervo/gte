@@ -59,6 +59,43 @@ Notes:
 - Return a `Config::Text` from the block (for example, `config.with(...)`).
 - Model instances are cached by full config key; different config values create different cached instances.
 
+Common model presets:
+
+```ruby
+e5 = GTE.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
+  config.with(
+    model_name: "model.onnx",
+    output_tensor: "last_hidden_state",
+    max_length: 512,
+    execution_providers: "cpu"
+  )
+end
+
+siglip2 = GTE.config(ENV.fetch("GTE_SIGLIP2_DIR")) do |config|
+  config.with(
+    model_name: "text_model_int8.onnx",
+    output_tensor: "pooler_output",
+    max_length: 64,
+    execution_providers: "cpu"
+  )
+end
+
+clip = GTE.config(ENV.fetch("GTE_CLIP_DIR")) do |config|
+  config.with(
+    output_tensor: "sentence_embedding",
+    max_length: 512,
+    execution_providers: "cpu"
+  )
+end
+```
+
+Picking a specific layer:
+
+- Use `output_tensor:` to request a named model output.
+- `last_hidden_state` gives token-level hidden states and is mean-pooled by `gte` when the tensor is rank 3.
+- `pooler_output`, `sentence_embedding`, and similar 2D tensors are returned directly and then L2-normalized by default.
+- If the requested tensor is not present in the model, `gte` raises an error instead of silently falling back.
+
 Low-level embedder setup (without model cache):
 
 ```ruby
