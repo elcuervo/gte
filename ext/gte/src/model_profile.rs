@@ -18,10 +18,7 @@ pub struct TokenizerProfile {
 pub fn resolve_tokenizer_path(dir: &Path) -> Result<PathBuf> {
     let tokenizer_path = dir.join("tokenizer.json");
     if !tokenizer_path.exists() {
-        return Err(GteError::Tokenizer(format!(
-            "tokenizer.json not found in {}",
-            dir.display()
-        )));
+        return Err(GteError::Tokenizer(format!("tokenizer.json not found in {}", dir.display())));
     }
     Ok(tokenizer_path)
 }
@@ -33,11 +30,7 @@ pub fn resolve_named_model(dir: &Path, name: &str) -> Result<PathBuf> {
             return Ok(path.clone());
         }
     }
-    Err(GteError::Inference(format!(
-        "model '{}' not found in {} (checked onnx/{0} and {0})",
-        name,
-        dir.display()
-    )))
+    Err(GteError::Inference(format!("model '{}' not found in {} (checked onnx/{0} and {0})", name, dir.display())))
 }
 
 pub fn resolve_default_text_model(dir: &Path) -> Result<PathBuf> {
@@ -62,9 +55,7 @@ pub fn read_tokenizer_profile(dir: &Path) -> TokenizerProfile {
     let tokenizer_config = read_json(dir.join("tokenizer_config.json"));
     let tokenizer_json = read_json(dir.join("tokenizer.json"));
 
-    let fixed_padding_length = tokenizer_json
-        .as_ref()
-        .and_then(parse_fixed_padding_length_from_tokenizer_json);
+    let fixed_padding_length = tokenizer_json.as_ref().and_then(parse_fixed_padding_length_from_tokenizer_json);
 
     let mut candidates = Vec::new();
     if let Some(config) = tokenizer_config.as_ref() {
@@ -90,19 +81,10 @@ pub fn read_tokenizer_profile(dir: &Path) -> TokenizerProfile {
         candidates.push(v.min(MAX_SUPPORTED_LENGTH));
     }
 
-    let default_max_length = candidates
-        .iter()
-        .copied()
-        .min()
-        .unwrap_or(DEFAULT_MAX_LENGTH)
-        .max(1);
+    let default_max_length = candidates.iter().copied().min().unwrap_or(DEFAULT_MAX_LENGTH).max(1);
     let safe_max_length = fixed_padding_length.unwrap_or(default_max_length).max(1);
 
-    TokenizerProfile {
-        default_max_length,
-        safe_max_length,
-        fixed_padding_length,
-    }
+    TokenizerProfile { default_max_length, safe_max_length, fixed_padding_length }
 }
 
 fn read_json(path: PathBuf) -> Option<Value> {
@@ -113,12 +95,7 @@ fn read_json(path: PathBuf) -> Option<Value> {
 fn parse_positive_usize(value: &Value) -> Option<usize> {
     let raw = value
         .as_u64()
-        .or_else(|| {
-            value
-                .as_f64()
-                .filter(|&v| v.is_finite() && v > 0.0)
-                .map(|v| v as u64)
-        })
+        .or_else(|| value.as_f64().filter(|&v| v.is_finite() && v > 0.0).map(|v| v as u64))
         .or_else(|| value.as_str().and_then(|s| s.parse::<u64>().ok()))?;
     let parsed = usize::try_from(raw).ok()?;
     (parsed > 0).then_some(parsed)
@@ -133,7 +110,9 @@ fn parse_fixed_padding_length_from_tokenizer_json(tokenizer_json: &Value) -> Opt
 }
 
 pub fn validate_supported_text_inputs(session: &Session, api_label: &str) -> Result<()> {
-    let unsupported: Vec<String> = session.inputs().iter()
+    let unsupported: Vec<String> = session
+        .inputs()
+        .iter()
         .filter(|i| !SUPPORTED_INPUTS.contains(&i.name()))
         .map(|i| i.name().to_owned())
         .collect();
@@ -142,11 +121,7 @@ pub fn validate_supported_text_inputs(session: &Session, api_label: &str) -> Res
         return Ok(());
     }
 
-    let mut message = format!(
-        "unsupported model inputs for {} API: {}",
-        api_label,
-        unsupported.join(", ")
-    );
+    let mut message = format!("unsupported model inputs for {} API: {}", api_label, unsupported.join(", "));
     if unsupported.iter().any(|n| n == "pixel_values") {
         message.push_str(
             ". This looks like a multimodal graph. Provide a text-only export (for example onnx/text_model.onnx).",
@@ -163,40 +138,23 @@ pub fn has_input(session: &Session, name: &str) -> bool {
 
 fn output_name_matches(name: &str, preferred: &str) -> bool {
     let lower = name.to_ascii_lowercase();
-    lower == preferred || lower.ends_with(&format!("/{}", preferred))
+    lower == preferred || lower.ends_with(&format!("/{preferred}"))
 }
 
-pub fn select_output_tensor(
-    session: &Session,
-    requested: Option<&str>,
-    preferred_outputs: &[&str],
-) -> Result<String> {
+#[allow(clippy::redundant_closure_for_method_calls)]
+pub fn select_output_tensor(session: &Session, requested: Option<&str>, preferred_outputs: &[&str]) -> Result<String> {
     if let Some(requested_name) = requested.map(str::trim).filter(|name| !name.is_empty()) {
-        if let Some(output) = session
-            .outputs()
-            .iter()
-            .find(|o| output_name_matches(o.name(), requested_name))
-        {
+        if let Some(output) = session.outputs().iter().find(|o| output_name_matches(o.name(), requested_name)) {
             return Ok(output.name().to_owned());
         }
-        let available = session
-            .outputs()
-            .iter()
-            .map(|o| o.name())
-            .collect::<Vec<_>>()
-            .join(", ");
+        let available = session.outputs().iter().map(|o| o.name()).collect::<Vec<_>>().join(", ");
         return Err(GteError::Inference(format!(
-            "requested output tensor '{}' not found in model outputs: {}",
-            requested_name, available
+            "requested output tensor '{requested_name}' not found in model outputs: {available}"
         )));
     }
 
     for preferred in preferred_outputs {
-        if let Some(output) = session
-            .outputs()
-            .iter()
-            .find(|o| output_name_matches(o.name(), preferred))
-        {
+        if let Some(output) = session.outputs().iter().find(|o| output_name_matches(o.name(), preferred)) {
             return Ok(output.name().to_owned());
         }
     }
@@ -204,12 +162,9 @@ pub fn select_output_tensor(
     let outputs = session.outputs();
     let best = outputs
         .iter()
-        .find(|o| {
-            matches!(o.dtype(), ort::value::ValueType::Tensor { shape, .. } if shape.len() == 2)
-        })
+        .find(|o| matches!(o.dtype(), ort::value::ValueType::Tensor { shape, .. } if shape.len() == 2))
         .or_else(|| outputs.first());
-    best.map(|o| o.name().to_owned())
-        .ok_or_else(|| GteError::Inference("model has no outputs".into()))
+    best.map(|o| o.name().to_owned()).ok_or_else(|| GteError::Inference("model has no outputs".into()))
 }
 
 fn output_basename(name: &str) -> &str {
@@ -217,34 +172,21 @@ fn output_basename(name: &str) -> &str {
 }
 
 pub fn infer_extraction_mode(session: &Session, output_tensor: &str) -> Result<ExtractorMode> {
-    let output = session
-        .outputs()
-        .iter()
-        .find(|o| o.name() == output_tensor)
-        .ok_or_else(|| {
-            GteError::Inference(format!(
-                "output tensor '{}' not found in model outputs",
-                output_tensor
-            ))
+    let output =
+        session.outputs().iter().find(|o| o.name() == output_tensor).ok_or_else(|| {
+            GteError::Inference(format!("output tensor '{output_tensor}' not found in model outputs"))
         })?;
 
     let ndims = match output.dtype() {
         ort::value::ValueType::Tensor { shape, .. } => shape.len(),
-        other => {
-            return Err(GteError::Inference(format!(
-                "output is not a tensor: {:?}",
-                other
-            )))
-        }
+        other => return Err(GteError::Inference(format!("output is not a tensor: {other:?}"))),
     };
 
     match (output_basename(output_tensor), ndims) {
-        ("last_hidden_state", 3) => Ok(ExtractorMode::MeanPool),
+        ("last_hidden_state" | _, 3) => Ok(ExtractorMode::MeanPool),
         (_, 2) => Ok(ExtractorMode::Raw),
-        (_, 3) => Ok(ExtractorMode::MeanPool),
         (_, n) => Err(GteError::Inference(format!(
-            "unexpected output tensor rank {} for '{}': expected 2 (Raw) or 3 (MeanPool)",
-            n, output_tensor
+            "unexpected output tensor rank {n} for '{output_tensor}': expected 2 (Raw) or 3 (MeanPool)"
         ))),
     }
 }
@@ -271,9 +213,6 @@ mod tests {
                 }
             }
         });
-        assert_eq!(
-            parse_fixed_padding_length_from_tokenizer_json(&tokenizer_json),
-            Some(64)
-        );
+        assert_eq!(parse_fixed_padding_length_from_tokenizer_json(&tokenizer_json), Some(64));
     }
 }

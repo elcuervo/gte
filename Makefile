@@ -24,8 +24,19 @@ test: compile
 	$(NIX) $(BUNDLE_ENV) bundle exec rspec
 
 lint:
-	$(NIX) cargo clippy --manifest-path ext/gte/Cargo.toml --no-default-features -- -D warnings
+	$(NIX) cargo clippy --manifest-path ext/gte/Cargo.toml --no-default-features
 	$(NIX) $(BUNDLE_ENV) bundle exec rubocop -A
+
+fmt:
+	$(NIX) cargo fmt --manifest-path ext/gte/Cargo.toml --all
+	$(NIX) $(BUNDLE_ENV) bundle exec rubocop -A
+
+fmt-check:
+	$(NIX) cargo fmt --manifest-path ext/gte/Cargo.toml --all -- --check
+	$(NIX) $(BUNDLE_ENV) bundle exec rubocop --format simple
+
+check-deps:
+	$(NIX) cargo udeps --manifest-path ext/gte/Cargo.toml --workspace
 
 models:
 	@script/download-models

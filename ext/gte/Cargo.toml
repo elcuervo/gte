@@ -22,11 +22,8 @@ ruby-ffi = ["dep:magnus", "dep:rb-sys"]
 rb-sys = { version = "0.9", features = ["stable-api-compiled-fallback"], optional = true }
 magnus = { version = "0.8", optional = true }
 ort = { version = "=2.0.0-rc.12", features = ["ndarray", "xnnpack"] }
-ort-sys = "=2.0.0-rc.12"
 tokenizers = "0.21.0"
 ndarray = "0.17"
-half = "2"
-serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [dev-dependencies]
@@ -35,3 +32,28 @@ criterion = "0.5"
 [[bench]]
 name = "hot_path"
 harness = false
+
+[lints.rust]
+unsafe_code = "deny"
+rust_2018_idioms = "warn"
+unused_qualifications = "warn"
+unused_results = "warn"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
+# Reasonable exceptions to pedantic lints:
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+must_use_candidate = "allow"
+cast_possible_truncation = "allow"
+cast_sign_loss = "allow"
+cast_precision_loss = "allow"
+similar_names = "allow"
+too_many_lines = "allow"
+# ndarray::ArrayView types are Copy — passing by value is idiomatic
+needless_pass_by_value = "allow"
+# ort::Outlet::name() is on a private type — closure is required
+redundant_closure_for_method_calls = "allow"
+# Transitive dep conflicts are not actionable in this crate
+multiple_crate_versions = "allow"

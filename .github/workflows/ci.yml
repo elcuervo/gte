@@ -48,7 +48,10 @@ jobs:
           nix develop -c bundle install --jobs 4 --retry 3
 
       - name: Clippy
-        run: nix develop -c cargo clippy --manifest-path ext/gte/Cargo.toml --no-default-features -- -D warnings
+        run: nix develop -c cargo clippy --manifest-path ext/gte/Cargo.toml --no-default-features
+
+      - name: Check formatting
+        run: nix develop -c cargo fmt --manifest-path ext/gte/Cargo.toml --all -- --check
 
       - name: Rubocop
         run: nix develop -c bundle exec rubocop

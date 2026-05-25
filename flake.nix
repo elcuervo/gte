@@ -18,6 +18,7 @@
             cargo
             clippy
             cargo-nextest
+            cargo-udeps
             git
             jq
             ripgrep

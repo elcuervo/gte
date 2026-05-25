@@ -1,8 +1,8 @@
 use crate::error::{GteError, Result};
 use crate::model_config::{ExtractorMode, ModelConfig, ModelLoadOverrides, PaddingMode};
 use crate::model_profile::{
-    has_input, infer_extraction_mode, read_tokenizer_profile, resolve_default_text_model,
-    resolve_named_model, resolve_tokenizer_path, select_output_tensor, validate_supported_text_inputs,
+    has_input, infer_extraction_mode, read_tokenizer_profile, resolve_default_text_model, resolve_named_model,
+    resolve_tokenizer_path, select_output_tensor, validate_supported_text_inputs,
 };
 use crate::postprocess::normalize_l2 as normalize_l2_rows;
 use crate::session::{build_session, SessionPool};
@@ -22,30 +22,17 @@ impl Embedder {
         P1: AsRef<Path>,
         P2: AsRef<Path>,
     {
-        let tokenizer = Tokenizer::new(
-            tokenizer_path,
-            config.max_length,
-            config.with_type_ids,
-            config.padding_mode,
-            None,
-        )?;
+        let tokenizer =
+            Tokenizer::new(tokenizer_path, config.max_length, config.with_type_ids, config.padding_mode, None)?;
         let model_path = model_path.as_ref();
         let session = build_session(model_path, &config)?;
         let pool = SessionPool::new(session, model_path, &config)?;
         Ok(Self { tokenizer, pool, config })
     }
 
-    pub fn from_dir<P: AsRef<Path>>(
-        dir: P,
-        optimization_level: u8,
-        overrides: ModelLoadOverrides<'_>,
-    ) -> Result<Self> {
-        const PREFERRED_EMBEDDING_OUTPUTS: [&str; 4] = [
-            "pooler_output",
-            "text_embeds",
-            "sentence_embedding",
-            "last_hidden_state",
-        ];
+    pub fn from_dir<P: AsRef<Path>>(dir: P, optimization_level: u8, overrides: ModelLoadOverrides<'_>) -> Result<Self> {
+        const PREFERRED_EMBEDDING_OUTPUTS: [&str; 4] =
+            ["pooler_output", "text_embeds", "sentence_embedding", "last_hidden_state"];
 
         let dir = dir.as_ref();
         let tokenizer_path = resolve_tokenizer_path(dir)?;
@@ -57,16 +44,13 @@ impl Embedder {
         let tokenizer_profile = read_tokenizer_profile(dir);
         let max_length = if let Some(override_value) = overrides.max_length {
             if override_value == 0 {
-                return Err(GteError::Inference(
-                    "max_length override must be greater than 0".to_string(),
-                ));
+                return Err(GteError::Inference("max_length override must be greater than 0".to_string()));
             }
             override_value.min(tokenizer_profile.safe_max_length)
         } else {
             tokenizer_profile.default_max_length
         };
-        let padding_mode =
-            parse_padding_mode_override(overrides.padding)?.unwrap_or(PaddingMode::Auto);
+        let padding_mode = parse_padding_mode_override(overrides.padding)?.unwrap_or(PaddingMode::Auto);
 
         let session_config = ModelConfig {
             max_length,
@@ -85,13 +69,10 @@ impl Embedder {
         validate_supported_text_inputs(&session, "text embedding")?;
         let with_type_ids = has_input(&session, "token_type_ids");
         let with_attention_mask = has_input(&session, "attention_mask");
-        let output_tensor =
-            select_output_tensor(&session, overrides.output_tensor, &PREFERRED_EMBEDDING_OUTPUTS)?;
+        let output_tensor = select_output_tensor(&session, overrides.output_tensor, &PREFERRED_EMBEDDING_OUTPUTS)?;
         let mode = infer_extraction_mode(&session, output_tensor.as_str())?;
         if matches!(mode, ExtractorMode::MeanPool) && !with_attention_mask {
-            return Err(GteError::Inference(
-                "cannot use mean pooling without attention_mask input".to_string(),
-            ));
+            return Err(GteError::Inference("cannot use mean pooling without attention_mask input".to_string()));
         }
 
         let config = ModelConfig {
@@ -119,8 +100,8 @@ impl Embedder {
         Ok(Self { tokenizer, pool, config })
     }
 
-    pub fn embed(&self, texts: Vec<String>) -> Result<Array2<f32>> {
-        self.embed_ref(&texts)
+    pub fn embed(&self, texts: &[String]) -> Result<Array2<f32>> {
+        self.embed_ref(texts)
     }
 
     pub fn embed_ref(&self, texts: &[String]) -> Result<Array2<f32>> {
@@ -129,11 +110,7 @@ impl Embedder {
             sanitized = texts
                 .iter()
                 .map(|t| {
-                    let mut s = if self.config.lowercase_input {
-                        t.to_lowercase()
-                    } else {
-                        t.clone()
-                    };
+                    let mut s = if self.config.lowercase_input { t.to_lowercase() } else { t.clone() };
                     if let Some(max_chars) = self.config.max_input_chars {
                         s.truncate(max_chars.min(s.len()));
                     }
@@ -148,11 +125,11 @@ impl Embedder {
         self.run(&tokenized)
     }
 
-    pub fn tokenize(&self, texts: &[String]) -> crate::error::Result<Tokenized> {
+    pub fn tokenize(&self, texts: &[String]) -> Result<Tokenized> {
         self.tokenizer.tokenize(texts)
     }
 
-    pub fn run(&self, tokenized: &Tokenized) -> crate::error::Result<Array2<f32>> {
+    pub fn run(&self, tokenized: &Tokenized) -> Result<Array2<f32>> {
         self.pool.run(tokenized, &self.config)
     }
 }
@@ -164,9 +141,7 @@ pub fn normalize_l2(embeddings: Array2<f32>) -> Array2<f32> {
 pub fn output_name_suggests_normalized(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
     let base = lower.rsplit('/').next().unwrap_or(&lower);
-    base.contains("normalized")
-        || base.contains("l2_norm")
-        || base.contains("l2norm")
+    base.contains("normalized") || base.contains("l2_norm") || base.contains("l2norm")
 }
 
 #[cfg(test)]

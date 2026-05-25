@@ -1,4 +1,7 @@
 #![cfg(feature = "ruby-ffi")]
+#![allow(unsafe_code)]
+#![allow(unused_results)]
+#![allow(unused_qualifications)]
 
 use crate::embedder::{normalize_l2, output_name_suggests_normalized, Embedder};
 use crate::error::GteError;
@@ -66,29 +69,30 @@ unsafe extern "C" fn run_embed_without_gvl(ptr: *mut c_void) -> *mut c_void {
     let run_result = catch_unwind(AssertUnwindSafe(|| {
         // Full embedding path (tokenization + inference) runs without the GVL.
         let embeddings = (*args.embedder).embed_ref(&*args.texts)?;
-        if args.normalize { Ok(normalize_l2(embeddings)) } else { Ok(embeddings) }
+        if args.normalize {
+            Ok(normalize_l2(embeddings))
+        } else {
+            Ok(embeddings)
+        }
     }));
     args.result = Some(match run_result {
         Ok(result) => result,
-        Err(payload) => Err(GteError::Inference(format!(
-            "panic during inference: {}",
-            panic_payload_to_string(payload),
-        ))),
+        Err(payload) => {
+            Err(GteError::Inference(format!("panic during inference: {}", panic_payload_to_string(payload),)))
+        }
     });
     std::ptr::null_mut()
 }
 
 unsafe extern "C" fn run_score_without_gvl(ptr: *mut c_void) -> *mut c_void {
     let args = &mut *(ptr as *mut ScoreArgs);
-    let run_result = catch_unwind(AssertUnwindSafe(|| {
-        (*args.reranker).score(&*args.query, &*args.candidates, args.apply_sigmoid)
-    }));
+    let run_result =
+        catch_unwind(AssertUnwindSafe(|| (*args.reranker).score(&*args.query, &*args.candidates, args.apply_sigmoid)));
     args.result = Some(match run_result {
         Ok(result) => result,
-        Err(payload) => Err(GteError::Inference(format!(
-            "panic during reranking: {}",
-            panic_payload_to_string(payload),
-        ))),
+        Err(payload) => {
+            Err(GteError::Inference(format!("panic during reranking: {}", panic_payload_to_string(payload),)))
+        }
     });
     std::ptr::null_mut()
 }
@@ -99,23 +103,18 @@ fn infer_without_gvl(
     texts: Vec<String>,
 ) -> Result<ndarray::Array2<f32>, Error> {
     let embeddings = unsafe {
-        let mut args = InferArgs {
-            embedder: Arc::as_ptr(embedder),
-            texts: &texts as *const Vec<String>,
-            normalize,
-            result: None,
-        };
+        let mut args =
+            InferArgs { embedder: Arc::as_ptr(embedder), texts: &texts as *const Vec<String>, normalize, result: None };
         rb_sys::rb_thread_call_without_gvl(
             Some(run_embed_without_gvl),
             &mut args as *mut InferArgs as *mut c_void,
             None,
             std::ptr::null_mut(),
         );
-        let result = args.result.take().ok_or_else(|| {
-            magnus::Error::from(GteError::Inference(
-                "inference did not return a result".to_string(),
-            ))
-        })?;
+        let result = args
+            .result
+            .take()
+            .ok_or_else(|| magnus::Error::from(GteError::Inference("inference did not return a result".to_string())))?;
         result.map_err(magnus::Error::from)?
     };
     Ok(embeddings)
@@ -141,11 +140,10 @@ fn score_without_gvl(
             None,
             std::ptr::null_mut(),
         );
-        let result = args.result.take().ok_or_else(|| {
-            magnus::Error::from(GteError::Inference(
-                "reranking did not return a result".to_string(),
-            ))
-        })?;
+        let result = args
+            .result
+            .take()
+            .ok_or_else(|| magnus::Error::from(GteError::Inference("reranking did not return a result".to_string())))?;
         result.map_err(magnus::Error::from)?
     };
     Ok(scores)
@@ -158,10 +156,7 @@ fn tensor_from_array(embeddings: ndarray::Array2<f32>) -> Result<RbTensor, Error
     let cols = embeddings.ncols();
     let (data, offset) = embeddings.into_raw_vec_and_offset();
     if let Some(off) = offset.filter(|&o| o != 0) {
-        return Err(magnus::Error::from(GteError::Inference(format!(
-            "unexpected non-zero tensor offset: {}",
-            off
-        ))));
+        return Err(magnus::Error::from(GteError::Inference(format!("unexpected non-zero tensor offset: {}", off))));
     }
     Ok(RbTensor { rows, cols, data })
 }
@@ -183,7 +178,8 @@ impl RbEmbedder {
         let name = if model_name.is_empty() { None } else { Some(model_name.as_str()) };
         let output_override = if output_tensor.is_empty() { None } else { Some(output_tensor.as_str()) };
         let max_length_override = if max_length == 0 { None } else { Some(max_length) };
-        let execution_providers_override = if execution_providers.is_empty() { None } else { Some(execution_providers.as_str()) };
+        let execution_providers_override =
+            if execution_providers.is_empty() { None } else { Some(execution_providers.as_str()) };
         let padding_override = if padding.is_empty() { None } else { Some(padding.as_str()) };
         let max_input_chars_override = if max_input_chars == 0 { None } else { Some(max_input_chars) };
         let overrides = ModelLoadOverrides {
@@ -195,8 +191,7 @@ impl RbEmbedder {
             lowercase_input: Some(lowercase_input),
             max_input_chars: max_input_chars_override,
         };
-        let embedder = Embedder::from_dir(&dir_path, optimization_level, overrides)
-            .map_err(magnus::Error::from)?;
+        let embedder = Embedder::from_dir(&dir_path, optimization_level, overrides).map_err(magnus::Error::from)?;
         let skip_normalize = normalize && output_name_suggests_normalized(&embedder.config.output_tensor);
         Ok(RbEmbedder { inner: Arc::new(embedder), normalize: normalize && !skip_normalize })
     }
@@ -230,7 +225,8 @@ impl RbReranker {
         let name = if model_name.is_empty() { None } else { Some(model_name.as_str()) };
         let output_override = if output_tensor.is_empty() { None } else { Some(output_tensor.as_str()) };
         let max_length_override = if max_length == 0 { None } else { Some(max_length) };
-        let execution_providers_override = if execution_providers.is_empty() { None } else { Some(execution_providers.as_str()) };
+        let execution_providers_override =
+            if execution_providers.is_empty() { None } else { Some(execution_providers.as_str()) };
         let padding_override = if padding.is_empty() { None } else { Some(padding.as_str()) };
         let overrides = ModelLoadOverrides {
             model_name: name,
@@ -240,17 +236,11 @@ impl RbReranker {
             execution_providers: execution_providers_override,
             ..ModelLoadOverrides::default()
         };
-        let reranker = Reranker::from_dir(&dir_path, optimization_level, overrides)
-            .map_err(magnus::Error::from)?;
+        let reranker = Reranker::from_dir(&dir_path, optimization_level, overrides).map_err(magnus::Error::from)?;
         Ok(RbReranker { inner: Arc::new(reranker), sigmoid })
     }
 
-    pub fn rb_score(
-        ruby: &Ruby,
-        rb_self: &Self,
-        query: String,
-        candidates: RArray,
-    ) -> Result<RArray, Error> {
+    pub fn rb_score(ruby: &Ruby, rb_self: &Self, query: String, candidates: RArray) -> Result<RArray, Error> {
         let candidates: Vec<String> = candidates.to_vec()?;
         let scores = score_without_gvl(&rb_self.inner, query, candidates, rb_self.sigmoid)?;
         let out = ruby.ary_new_capa(scores.len());
@@ -305,11 +295,7 @@ impl RbTensor {
         Self::row_binary_f32(ruby, rb_self, 0)
     }
 
-    pub fn row_binary_f32(
-        ruby: &Ruby,
-        rb_self: &Self,
-        index: usize,
-    ) -> Result<magnus::RString, Error> {
+    pub fn row_binary_f32(ruby: &Ruby, rb_self: &Self, index: usize) -> Result<magnus::RString, Error> {
         if index >= rb_self.rows {
             return Err(magnus::Error::from(GteError::Inference(format!(
                 "row index {} out of bounds for {} rows",

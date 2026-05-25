@@ -1,10 +1,7 @@
 use crate::error::{GteError, Result};
 use ndarray::{Array2, ArrayView2, ArrayView3};
 
-pub fn mean_pool(
-    hidden_states: ArrayView3<'_, f32>,
-    attention_mask: ArrayView2<'_, i64>,
-) -> Result<Array2<f32>> {
+pub fn mean_pool(hidden_states: ArrayView3<'_, f32>, attention_mask: ArrayView2<'_, i64>) -> Result<Array2<f32>> {
     let (batch, seq, dim) = hidden_states.dim();
     if attention_mask.dim() != (batch, seq) {
         return Err(GteError::Inference(format!(
@@ -34,17 +31,14 @@ pub fn mean_pool(
 
             let weight = weight as f32;
             for dim_index in 0..dim {
-                pooled[[batch_index, dim_index]] +=
-                    hidden_states[[batch_index, token_index, dim_index]] * weight;
+                pooled[[batch_index, dim_index]] += hidden_states[[batch_index, token_index, dim_index]] * weight;
             }
             weight_sum += weight;
         }
 
         if weight_sum > 0.0 {
             let inverse = weight_sum.recip();
-            pooled
-                .row_mut(batch_index)
-                .map_inplace(|value| *value *= inverse);
+            pooled.row_mut(batch_index).map_inplace(|value| *value *= inverse);
         }
     }
 

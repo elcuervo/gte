@@ -1,8 +1,8 @@
 use crate::error::{GteError, Result};
 use crate::model_config::{ModelLoadOverrides, PaddingMode};
 use crate::model_profile::{
-    has_input, read_tokenizer_profile, resolve_default_text_model, resolve_named_model,
-    resolve_tokenizer_path, select_output_tensor, validate_supported_text_inputs,
+    has_input, read_tokenizer_profile, resolve_default_text_model, resolve_named_model, resolve_tokenizer_path,
+    select_output_tensor, validate_supported_text_inputs,
 };
 use crate::pipeline::{extract_output_tensor, InputTensors};
 use crate::postprocess::sigmoid_scores;
@@ -26,11 +26,7 @@ pub struct Reranker {
 }
 
 impl Reranker {
-    pub fn from_dir<P: AsRef<Path>>(
-        dir: P,
-        optimization_level: u8,
-        overrides: ModelLoadOverrides<'_>,
-    ) -> Result<Self> {
+    pub fn from_dir<P: AsRef<Path>>(dir: P, optimization_level: u8, overrides: ModelLoadOverrides<'_>) -> Result<Self> {
         let dir = dir.as_ref();
         let tokenizer_path = resolve_tokenizer_path(dir)?;
         let model_path: PathBuf = match overrides.model_name.filter(|s| !s.is_empty()) {
@@ -41,16 +37,13 @@ impl Reranker {
         let tokenizer_profile = read_tokenizer_profile(dir);
         let max_length = if let Some(override_value) = overrides.max_length {
             if override_value == 0 {
-                return Err(GteError::Inference(
-                    "max_length override must be greater than 0".to_string(),
-                ));
+                return Err(GteError::Inference("max_length override must be greater than 0".to_string()));
             }
             override_value.min(tokenizer_profile.safe_max_length)
         } else {
             tokenizer_profile.default_max_length
         };
-        let padding_mode =
-            parse_padding_mode_override(overrides.padding)?.unwrap_or(PaddingMode::Auto);
+        let padding_mode = parse_padding_mode_override(overrides.padding)?.unwrap_or(PaddingMode::Auto);
 
         let probe_config = crate::model_config::ModelConfig {
             max_length,
@@ -71,13 +64,7 @@ impl Reranker {
         let with_attention_mask = has_input(&session, "attention_mask");
         let output_tensor = select_output_tensor(&session, overrides.output_tensor, &["logits"])?;
 
-        let config = RerankerConfig {
-            max_length,
-            padding_mode,
-            output_tensor,
-            with_type_ids,
-            with_attention_mask,
-        };
+        let config = RerankerConfig { max_length, padding_mode, output_tensor, with_type_ids, with_attention_mask };
 
         let tokenizer = Tokenizer::new(
             &tokenizer_path,
@@ -113,19 +100,13 @@ impl Reranker {
         self.score_tokenized(&tokenized, apply_sigmoid)
     }
 
-    fn score_tokenized(
-        &self,
-        tokenized: &crate::tokenizer::Tokenized,
-        apply_sigmoid: bool,
-    ) -> Result<Vec<f32>> {
+    fn score_tokenized(&self, tokenized: &crate::tokenizer::Tokenized, apply_sigmoid: bool) -> Result<Vec<f32>> {
         let input_tensors = InputTensors::from_tokenized(tokenized, self.config.with_attention_mask)?;
         let output_name = self.config.output_tensor.clone();
         let inputs = input_tensors.inputs;
 
         self.pool.with_session(|session| {
-            let outputs = session
-                .run(inputs)
-                .map_err(|e| GteError::Ort(e.to_string()))?;
+            let outputs = session.run(inputs).map_err(|e| GteError::Ort(e.to_string()))?;
 
             let array = extract_output_tensor(&outputs, output_name.as_str())?;
 
@@ -135,16 +116,14 @@ impl Reranker {
                     let shape = array.shape();
                     if shape[1] == 0 {
                         return Err(GteError::Inference(format!(
-                            "reranker output '{}' has invalid shape {:?}",
-                            output_name, shape
+                            "reranker output '{output_name}' has invalid shape {shape:?}"
                         )));
                     }
                     array.slice(ndarray::s![.., 0]).to_vec()
                 }
                 n => {
                     return Err(GteError::Inference(format!(
-                        "reranker output '{}' rank {} is unsupported; expected rank 1 or 2",
-                        output_name, n
+                        "reranker output '{output_name}' rank {n} is unsupported; expected rank 1 or 2"
                     )))
                 }
             };

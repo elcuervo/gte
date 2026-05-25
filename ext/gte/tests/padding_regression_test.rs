@@ -12,10 +12,7 @@
 use gte::model_config::PaddingMode;
 use gte::tokenizer::Tokenizer;
 
-const TOKENIZER: &str = concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/tests/fixtures/minimal/tokenizer.json"
-);
+const TOKENIZER: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/minimal/tokenizer.json");
 
 // Short input tokenizes to 1 token with this vocabulary.
 const SHORT_INPUT: &str = "cat";
@@ -28,9 +25,7 @@ fn auto_padding_uses_batch_longest_regardless_of_tokenizer_json() {
     let tokenizer = Tokenizer::new(TOKENIZER, MAX_LENGTH, false, PaddingMode::Auto, Some(MAX_LENGTH))
         .expect("tokenizer should load");
 
-    let tokenized = tokenizer
-        .tokenize(&[SHORT_INPUT.to_string()])
-        .expect("tokenize should succeed");
+    let tokenized = tokenizer.tokenize(&[SHORT_INPUT.to_string()]).expect("tokenize should succeed");
 
     // Old behavior: cols == 64 (silently padded to max_length)
     // New behavior: cols == actual token count (1 for "cat")
@@ -46,30 +41,24 @@ fn auto_padding_uses_batch_longest_regardless_of_tokenizer_json() {
 
 #[test]
 fn fixed_padding_mode_pads_to_max_length() {
-    let tokenizer = Tokenizer::new(TOKENIZER, MAX_LENGTH, false, PaddingMode::Fixed, None)
-        .expect("tokenizer should load");
+    let tokenizer =
+        Tokenizer::new(TOKENIZER, MAX_LENGTH, false, PaddingMode::Fixed, None).expect("tokenizer should load");
 
-    let tokenized = tokenizer
-        .tokenize(&[SHORT_INPUT.to_string()])
-        .expect("tokenize should succeed");
+    let tokenized = tokenizer.tokenize(&[SHORT_INPUT.to_string()]).expect("tokenize should succeed");
 
-    assert_eq!(
-        tokenized.cols, MAX_LENGTH,
-        "Fixed mode should pad to max_length"
-    );
+    assert_eq!(tokenized.cols, MAX_LENGTH, "Fixed mode should pad to max_length");
     assert_eq!(tokenized.input_ids.len(), MAX_LENGTH);
     assert_eq!(tokenized.attn_masks.len(), MAX_LENGTH);
 }
 
 #[test]
 fn batch_longest_padding_uses_longest_sequence_in_batch() {
-    let tokenizer = Tokenizer::new(TOKENIZER, MAX_LENGTH, false, PaddingMode::BatchLongest, None)
-        .expect("tokenizer should load");
+    let tokenizer =
+        Tokenizer::new(TOKENIZER, MAX_LENGTH, false, PaddingMode::BatchLongest, None).expect("tokenizer should load");
 
     // "cat" = 1 token, "hello world" = 2 tokens — batch pads to 2, not 64
-    let tokenized = tokenizer
-        .tokenize(&["cat".to_string(), "hello world".to_string()])
-        .expect("tokenize should succeed");
+    let tokenized =
+        tokenizer.tokenize(&["cat".to_string(), "hello world".to_string()]).expect("tokenize should succeed");
 
     assert_eq!(tokenized.rows, 2);
     assert!(
@@ -83,12 +72,10 @@ fn batch_longest_padding_uses_longest_sequence_in_batch() {
 #[test]
 fn auto_padding_with_no_fixed_hint_also_uses_batch_longest() {
     // Sanity check: Auto with fixed_padding_length=None also uses BatchLongest
-    let tokenizer = Tokenizer::new(TOKENIZER, MAX_LENGTH, false, PaddingMode::Auto, None)
-        .expect("tokenizer should load");
+    let tokenizer =
+        Tokenizer::new(TOKENIZER, MAX_LENGTH, false, PaddingMode::Auto, None).expect("tokenizer should load");
 
-    let tokenized = tokenizer
-        .tokenize(&[SHORT_INPUT.to_string()])
-        .expect("tokenize should succeed");
+    let tokenized = tokenizer.tokenize(&[SHORT_INPUT.to_string()]).expect("tokenize should succeed");
 
     assert!(tokenized.cols < MAX_LENGTH);
 }

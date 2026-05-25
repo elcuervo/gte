@@ -4,17 +4,11 @@ use gte::tokenizer::Tokenizer;
 #[test]
 #[ignore = "requires ext/gte/tests/fixtures/e5/tokenizer.json"]
 fn test_e5_tokenizer_output_shape() {
-    const TOKENIZER: &str = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/fixtures/e5/tokenizer.json"
-    );
+    const TOKENIZER: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/e5/tokenizer.json");
 
-    let tokenizer = Tokenizer::new(TOKENIZER, 512, true, PaddingMode::BatchLongest, None)
-        .expect("tokenizer should load");
-    let texts = vec![
-        "Hello, world!".to_string(),
-        "A second, longer sentence to test padding behavior.".to_string(),
-    ];
+    let tokenizer =
+        Tokenizer::new(TOKENIZER, 512, true, PaddingMode::BatchLongest, None).expect("tokenizer should load");
+    let texts = vec!["Hello, world!".to_string(), "A second, longer sentence to test padding behavior.".to_string()];
 
     let tokenized = tokenizer.tokenize(&texts).expect("tokenize should succeed");
 
@@ -30,21 +24,13 @@ fn test_e5_tokenizer_output_shape() {
 #[test]
 #[ignore = "requires ext/gte/tests/fixtures/e5/tokenizer.json"]
 fn test_e5_truncation_at_max_length() {
-    const TOKENIZER: &str = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/fixtures/e5/tokenizer.json"
-    );
+    const TOKENIZER: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/e5/tokenizer.json");
 
-    let tokenizer = Tokenizer::new(TOKENIZER, 16, false, PaddingMode::BatchLongest, None)
-        .expect("tokenizer should load");
+    let tokenizer =
+        Tokenizer::new(TOKENIZER, 16, false, PaddingMode::BatchLongest, None).expect("tokenizer should load");
     let long_text = "word ".repeat(200);
-    let tokenized = tokenizer
-        .tokenize(&[long_text])
-        .expect("tokenize should not error on long input");
+    let tokenized = tokenizer.tokenize(&[long_text]).expect("tokenize should not error on long input");
 
     assert_eq!(tokenized.rows, 1);
-    assert_eq!(
-        tokenized.cols, 16,
-        "sequence length should be truncated to max_length"
-    );
+    assert_eq!(tokenized.cols, 16, "sequence length should be truncated to max_length");
 }

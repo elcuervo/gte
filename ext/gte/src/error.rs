@@ -9,10 +9,10 @@ pub enum GteError {
 impl std::fmt::Display for GteError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GteError::Tokenizer(msg) => write!(f, "GTE tokenizer error: {}", msg),
-            GteError::Inference(msg) => write!(f, "GTE inference error: {}", msg),
-            GteError::Ort(msg) => write!(f, "GTE ORT error: {}", msg),
-            GteError::Shape(msg) => write!(f, "GTE shape error: {}", msg),
+            GteError::Tokenizer(msg) => write!(f, "GTE tokenizer error: {msg}"),
+            GteError::Inference(msg) => write!(f, "GTE inference error: {msg}"),
+            GteError::Ort(msg) => write!(f, "GTE ORT error: {msg}"),
+            GteError::Shape(msg) => write!(f, "GTE shape error: {msg}"),
         }
     }
 }

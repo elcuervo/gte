@@ -489,13 +489,10 @@ name = "gte"
 version = "0.0.13"
 dependencies = [
  "criterion",
- "half",
  "magnus",
  "ndarray",
  "ort",
- "ort-sys",
  "rb-sys",
- "serde",
  "serde_json",
  "tokenizers",
 ]
