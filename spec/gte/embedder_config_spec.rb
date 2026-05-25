@@ -24,7 +24,9 @@ RSpec.describe GTE::Embedder do
         'sentence_embedding',
         256,
         'fixed',
-        'cpu'
+        'cpu',
+        false,
+        0
       ).and_return(:built)
 
       config = described_class.default_config('/tmp/demo-model').with(

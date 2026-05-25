@@ -61,6 +61,8 @@ impl Reranker {
             with_attention_mask: true,
             optimization_level,
             execution_providers: overrides.execution_providers.map(str::to_string),
+            lowercase_input: false,
+            max_input_chars: None,
         };
         let session = build_session(&model_path, &probe_config)?;
 
@@ -85,7 +87,19 @@ impl Reranker {
             tokenizer_profile.fixed_padding_length,
         )?;
 
-        let pool = SessionPool::new(session, model_path, probe_config);
+        let model_config = crate::model_config::ModelConfig {
+            max_length,
+            padding_mode,
+            output_tensor: config.output_tensor.clone(),
+            mode: crate::model_config::ExtractorMode::Raw,
+            with_type_ids: config.with_type_ids,
+            with_attention_mask: config.with_attention_mask,
+            optimization_level,
+            execution_providers: None,
+            lowercase_input: false,
+            max_input_chars: None,
+        };
+        let pool = SessionPool::new(session, &model_path, &model_config)?;
         Ok(Self { tokenizer, pool, config })
     }
 
@@ -105,34 +119,41 @@ impl Reranker {
         apply_sigmoid: bool,
     ) -> Result<Vec<f32>> {
         let input_tensors = InputTensors::from_tokenized(tokenized, self.config.with_attention_mask)?;
-        let mut session = self.pool.acquire()?;
-        let outputs = session.run(input_tensors.inputs).map_err(|e| GteError::Ort(e.to_string()))?;
-        let array = extract_output_tensor(&outputs, self.config.output_tensor.as_str())?;
+        let output_name = self.config.output_tensor.clone();
+        let inputs = input_tensors.inputs;
 
-        let mut scores = match array.ndim() {
-            1 => array.into_dimensionality::<ndarray::Ix1>()?.to_vec(),
-            2 => {
-                let shape = array.shape();
-                if shape[1] == 0 {
-                    return Err(GteError::Inference(format!(
-                        "reranker output '{}' has invalid shape {:?}",
-                        self.config.output_tensor, shape
-                    )));
+        self.pool.with_session(|session| {
+            let outputs = session
+                .run(inputs)
+                .map_err(|e| GteError::Ort(e.to_string()))?;
+
+            let array = extract_output_tensor(&outputs, output_name.as_str())?;
+
+            let mut scores = match array.ndim() {
+                1 => array.into_dimensionality::<ndarray::Ix1>()?.to_vec(),
+                2 => {
+                    let shape = array.shape();
+                    if shape[1] == 0 {
+                        return Err(GteError::Inference(format!(
+                            "reranker output '{}' has invalid shape {:?}",
+                            output_name, shape
+                        )));
+                    }
+                    array.slice(ndarray::s![.., 0]).to_vec()
                 }
-                array.slice(ndarray::s![.., 0]).to_vec()
-            }
-            n => {
-                return Err(GteError::Inference(format!(
-                    "reranker output '{}' rank {} is unsupported; expected rank 1 or 2",
-                    self.config.output_tensor, n
-                )))
-            }
-        };
+                n => {
+                    return Err(GteError::Inference(format!(
+                        "reranker output '{}' rank {} is unsupported; expected rank 1 or 2",
+                        output_name, n
+                    )))
+                }
+            };
 
-        if apply_sigmoid {
-            sigmoid_scores(ndarray::ArrayViewMut1::from(scores.as_mut_slice()));
-        }
+            if apply_sigmoid {
+                sigmoid_scores(ndarray::ArrayViewMut1::from(scores.as_mut_slice()));
+            }
 
-        Ok(scores)
+            Ok(scores)
+        })
     }
 }

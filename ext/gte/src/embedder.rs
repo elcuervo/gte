@@ -5,7 +5,7 @@ use crate::model_profile::{
     resolve_named_model, resolve_tokenizer_path, select_output_tensor, validate_supported_text_inputs,
 };
 use crate::postprocess::normalize_l2 as normalize_l2_rows;
-use crate::session::{build_session, run_session, SessionPool};
+use crate::session::{build_session, SessionPool};
 use crate::tokenizer::{parse_padding_mode_override, Tokenized, Tokenizer};
 use ndarray::Array2;
 use std::path::{Path, PathBuf};
@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 pub struct Embedder {
     tokenizer: Tokenizer,
     pool: SessionPool,
-    config: ModelConfig,
+    pub config: ModelConfig,
 }
 
 impl Embedder {
@@ -29,9 +29,9 @@ impl Embedder {
             config.padding_mode,
             None,
         )?;
-        let model_path = model_path.as_ref().to_path_buf();
-        let session = build_session(&model_path, &config)?;
-        let pool = SessionPool::new(session, model_path, config.clone());
+        let model_path = model_path.as_ref();
+        let session = build_session(model_path, &config)?;
+        let pool = SessionPool::new(session, model_path, &config)?;
         Ok(Self { tokenizer, pool, config })
     }
 
@@ -77,6 +77,8 @@ impl Embedder {
             with_attention_mask: true,
             optimization_level,
             execution_providers: overrides.execution_providers.map(str::to_string),
+            lowercase_input: overrides.lowercase_input.unwrap_or(false),
+            max_input_chars: overrides.max_input_chars,
         };
         let session = build_session(&model_path, &session_config)?;
 
@@ -101,6 +103,8 @@ impl Embedder {
             with_attention_mask,
             optimization_level,
             execution_providers: overrides.execution_providers.map(str::to_string),
+            lowercase_input: overrides.lowercase_input.unwrap_or(false),
+            max_input_chars: overrides.max_input_chars,
         };
 
         let tokenizer = Tokenizer::new(
@@ -111,7 +115,7 @@ impl Embedder {
             tokenizer_profile.fixed_padding_length,
         )?;
 
-        let pool = SessionPool::new(session, model_path, session_config);
+        let pool = SessionPool::new(session, &model_path, &session_config)?;
         Ok(Self { tokenizer, pool, config })
     }
 
@@ -120,7 +124,27 @@ impl Embedder {
     }
 
     pub fn embed_ref(&self, texts: &[String]) -> Result<Array2<f32>> {
-        let tokenized = self.tokenize(texts)?;
+        let sanitized: Vec<String>;
+        let input = if self.config.lowercase_input || self.config.max_input_chars.is_some() {
+            sanitized = texts
+                .iter()
+                .map(|t| {
+                    let mut s = if self.config.lowercase_input {
+                        t.to_lowercase()
+                    } else {
+                        t.clone()
+                    };
+                    if let Some(max_chars) = self.config.max_input_chars {
+                        s.truncate(max_chars.min(s.len()));
+                    }
+                    s
+                })
+                .collect();
+            &sanitized
+        } else {
+            texts
+        };
+        let tokenized = self.tokenize(input)?;
         self.run(&tokenized)
     }
 
@@ -129,11 +153,40 @@ impl Embedder {
     }
 
     pub fn run(&self, tokenized: &Tokenized) -> crate::error::Result<Array2<f32>> {
-        let mut session = self.pool.acquire()?;
-        run_session(&mut session, tokenized, &self.config)
+        self.pool.run(tokenized, &self.config)
     }
 }
 
 pub fn normalize_l2(embeddings: Array2<f32>) -> Array2<f32> {
     normalize_l2_rows(embeddings)
+}
+
+pub fn output_name_suggests_normalized(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    let base = lower.rsplit('/').next().unwrap_or(&lower);
+    base.contains("normalized")
+        || base.contains("l2_norm")
+        || base.contains("l2norm")
+}
+
+#[cfg(test)]
+mod normalize_tests {
+    use super::output_name_suggests_normalized;
+
+    #[test]
+    fn detects_normalized_output_names() {
+        assert!(output_name_suggests_normalized("pooled_sentence_embeddings_debiased_normalized"));
+        assert!(output_name_suggests_normalized("embeddings/L2_Normalized"));
+        assert!(output_name_suggests_normalized("l2norm_output"));
+        assert!(output_name_suggests_normalized("norm/l2_norm_tensor"));
+    }
+
+    #[test]
+    fn does_not_detect_raw_output_names() {
+        assert!(!output_name_suggests_normalized("last_hidden_state"));
+        assert!(!output_name_suggests_normalized("text_embeds"));
+        assert!(!output_name_suggests_normalized("pooler_output"));
+        assert!(!output_name_suggests_normalized("sentence_embedding"));
+        assert!(!output_name_suggests_normalized("logits"));
+    }
 }

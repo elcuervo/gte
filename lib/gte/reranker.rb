@@ -38,7 +38,9 @@ module GTE
           cfg.output_tensor.to_s,
           cfg.max_length || 0,
           cfg.padding.to_s,
-          cfg.execution_providers.to_s
+          cfg.execution_providers.to_s,
+          false, # lowercase_input
+          0 # max_input_chars
         )
       end
     end

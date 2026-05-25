@@ -8,9 +8,80 @@ use ort::execution_providers::{
     CoreMLExecutionProvider, ExecutionProviderDispatch, XNNPACKExecutionProvider,
 };
 use ort::session::{OutputSelector, RunOptions, Session};
+use std::cell::RefCell;
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Condvar, Mutex};
+
+// ---------------------------------------------------------------------------
+// Thread-local session storage — each OS thread lazily creates its own ONNX
+// session the first time it calls into a given pool.  No Mutex, no contention.
+// ---------------------------------------------------------------------------
+
+static NEXT_POOL_ID: AtomicUsize = AtomicUsize::new(1);
+
+struct SessionRecipe {
+    model_path: PathBuf,
+    build_config: ModelConfig,
+}
+
+thread_local! {
+    static SESSIONS: RefCell<HashMap<usize, Session>> = RefCell::new(HashMap::new());
+}
+
+pub struct SessionPool {
+    pool_id: usize,
+    recipe: SessionRecipe,
+}
+
+impl SessionPool {
+    pub fn new(
+        initial: Session,
+        model_path: &Path,
+        build_config: &ModelConfig,
+    ) -> Result<Self> {
+        let pool_id = NEXT_POOL_ID.fetch_add(1, Ordering::Relaxed);
+
+        SESSIONS.with(|map| {
+            map.borrow_mut().insert(pool_id, initial);
+        });
+
+        Ok(Self {
+            pool_id,
+            recipe: SessionRecipe {
+                model_path: model_path.to_path_buf(),
+                build_config: build_config.clone(),
+            },
+        })
+    }
+
+    pub fn run(&self, tokenized: &Tokenized, config: &ModelConfig) -> Result<Array2<f32>> {
+        self.with_session(|session| run_session(session, tokenized, config))
+    }
+
+    pub fn with_session<F, R>(&self, f: F) -> Result<R>
+    where
+        F: FnOnce(&mut Session) -> Result<R>,
+    {
+        SESSIONS.with(|map| {
+            let mut map = map.borrow_mut();
+            let session = match map.entry(self.pool_id) {
+                Entry::Occupied(e) => e.into_mut(),
+                Entry::Vacant(e) => {
+                    let session =
+                        build_session(&self.recipe.model_path, &self.recipe.build_config)?;
+                    e.insert(session)
+                }
+            };
+            f(session)
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Session construction
+// ---------------------------------------------------------------------------
 
 pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Result<Session> {
     let opt_level = match config.optimization_level {
@@ -29,6 +100,20 @@ pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Res
         .with_optimization_level(opt_level)
         .map_err(ort_err)?;
 
+    if let Some(n) = std::env::var("GTE_INTRA_OP_NUM_THREADS")
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+    {
+        builder = builder.with_intra_threads(n).map_err(ort_err)?;
+    }
+
+    if let Some(n) = std::env::var("GTE_INTER_OP_NUM_THREADS")
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+    {
+        builder = builder.with_inter_threads(n).map_err(ort_err)?;
+    }
+
     let providers = preferred_execution_providers(config.execution_providers.as_deref());
     if !providers.is_empty() {
         builder = builder
@@ -40,131 +125,7 @@ pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Res
 }
 
 // ---------------------------------------------------------------------------
-// Session pool
-// ---------------------------------------------------------------------------
-
-fn pool_capacity() -> usize {
-    let available = std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(1);
-    parse_pool_capacity_override().map_or(available, |cap| cap.min(available).max(1))
-}
-
-fn parse_pool_capacity_override() -> Option<usize> {
-    let raw = std::env::var("GTE_SESSION_POOL_CAP").ok()?;
-    let parsed = raw.trim().parse::<usize>().ok()?;
-    (parsed > 0).then_some(parsed)
-}
-
-pub struct SessionPool {
-    sessions: Mutex<Vec<Session>>,
-    available: Condvar,
-    created: AtomicUsize,
-    capacity: usize,
-    model_path: PathBuf,
-    build_config: ModelConfig,
-}
-
-impl SessionPool {
-    pub fn new(initial: Session, model_path: PathBuf, build_config: ModelConfig) -> Self {
-        let capacity = pool_capacity();
-        Self {
-            sessions: Mutex::new(vec![initial]),
-            available: Condvar::new(),
-            created: AtomicUsize::new(1),
-            capacity,
-            model_path,
-            build_config,
-        }
-    }
-
-    pub fn acquire(&self) -> Result<PooledSession<'_>> {
-        if let Some(session) = self.take_available_session() {
-            return Ok(PooledSession {
-                pool: self,
-                session: Some(session),
-            });
-        }
-
-        if let Some(session) = self.try_grow()? {
-            return Ok(PooledSession {
-                pool: self,
-                session: Some(session),
-            });
-        }
-
-        let session = self.wait_for_session();
-        Ok(PooledSession {
-            pool: self,
-            session: Some(session),
-        })
-    }
-
-    fn release(&self, session: Session) {
-        self.sessions.lock().unwrap().push(session);
-        self.available.notify_one();
-    }
-
-    fn take_available_session(&self) -> Option<Session> {
-        self.sessions.lock().unwrap().pop()
-    }
-
-    fn try_grow(&self) -> Result<Option<Session>> {
-        let grew = self
-            .created
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |count| {
-                (count < self.capacity).then_some(count + 1)
-            });
-        if grew.is_err() {
-            return Ok(None);
-        }
-
-        match build_session(&self.model_path, &self.build_config) {
-            Ok(session) => Ok(Some(session)),
-            Err(error) => {
-                self.created.fetch_sub(1, Ordering::AcqRel);
-                Err(error)
-            }
-        }
-    }
-
-    fn wait_for_session(&self) -> Session {
-        let mut lock = self.sessions.lock().unwrap();
-        loop {
-            if let Some(session) = lock.pop() {
-                return session;
-            }
-            lock = self.available.wait(lock).unwrap();
-        }
-    }
-}
-
-pub struct PooledSession<'a> {
-    pool: &'a SessionPool,
-    session: Option<Session>,
-}
-
-impl std::ops::Deref for PooledSession<'_> {
-    type Target = Session;
-    fn deref(&self) -> &Session {
-        self.session.as_ref().unwrap()
-    }
-}
-
-impl std::ops::DerefMut for PooledSession<'_> {
-    fn deref_mut(&mut self) -> &mut Session {
-        self.session.as_mut().unwrap()
-    }
-}
-
-impl Drop for PooledSession<'_> {
-    fn drop(&mut self) {
-        if let Some(s) = self.session.take() {
-            self.pool.release(s);
-        }
-    }
-}
-
+// Execution providers
 // ---------------------------------------------------------------------------
 
 fn preferred_execution_providers(order_override: Option<&str>) -> Vec<ExecutionProviderDispatch> {
@@ -209,6 +170,10 @@ fn parse_provider_registrations(order: &str) -> Vec<&str> {
     }
     providers
 }
+
+// ---------------------------------------------------------------------------
+// Run a single inference
+// ---------------------------------------------------------------------------
 
 pub fn run_session(
     session: &mut Session,
@@ -265,10 +230,7 @@ mod tests {
     use crate::model_config::{ExtractorMode, ModelConfig, PaddingMode};
     use ndarray::{array, ArrayView2};
 
-    use super::{
-        extract_embeddings, parse_pool_capacity_override, parse_provider_registrations,
-        resolve_provider_order_with_env,
-    };
+    use super::{extract_embeddings, parse_provider_registrations, resolve_provider_order_with_env};
 
     fn test_config(mode: ExtractorMode) -> ModelConfig {
         ModelConfig {
@@ -280,6 +242,8 @@ mod tests {
             with_attention_mask: true,
             optimization_level: 3,
             execution_providers: None,
+            lowercase_input: false,
+            max_input_chars: None,
         }
     }
 
@@ -323,33 +287,6 @@ mod tests {
             "coreml"
         );
         assert_eq!(resolve_provider_order_with_env(None, None), "cpu");
-    }
-
-    #[test]
-    fn parse_pool_capacity_override_uses_positive_integer_only() {
-        unsafe {
-            std::env::remove_var("GTE_SESSION_POOL_CAP");
-        }
-        assert_eq!(parse_pool_capacity_override(), None);
-
-        unsafe {
-            std::env::set_var("GTE_SESSION_POOL_CAP", "0");
-        }
-        assert_eq!(parse_pool_capacity_override(), None);
-
-        unsafe {
-            std::env::set_var("GTE_SESSION_POOL_CAP", "4");
-        }
-        assert_eq!(parse_pool_capacity_override(), Some(4));
-
-        unsafe {
-            std::env::set_var("GTE_SESSION_POOL_CAP", "abc");
-        }
-        assert_eq!(parse_pool_capacity_override(), None);
-
-        unsafe {
-            std::env::remove_var("GTE_SESSION_POOL_CAP");
-        }
     }
 
     #[test]

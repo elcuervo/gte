@@ -20,7 +20,9 @@ module GTE
           config.output_tensor.to_s,
           config.max_length || 0,
           config.padding.to_s,
-          config.execution_providers.to_s
+          config.execution_providers.to_s,
+          config.lowercase_input ? true : false,
+          config.max_input_chars || 0
         )
       end
 
@@ -33,7 +35,9 @@ module GTE
           output_tensor: nil,
           max_length: nil,
           padding: nil,
-          execution_providers: nil
+          execution_providers: nil,
+          lowercase_input: false,
+          max_input_chars: nil
         )
       end
     end

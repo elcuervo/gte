@@ -1,6 +1,6 @@
 #![cfg(feature = "ruby-ffi")]
 
-use crate::embedder::{normalize_l2, Embedder};
+use crate::embedder::{normalize_l2, output_name_suggests_normalized, Embedder};
 use crate::error::GteError;
 use crate::model_config::ModelLoadOverrides;
 use crate::reranker::Reranker;
@@ -177,22 +177,28 @@ impl RbEmbedder {
         max_length: usize,
         padding: String,
         execution_providers: String,
+        lowercase_input: bool,
+        max_input_chars: usize,
     ) -> Result<Self, Error> {
         let name = if model_name.is_empty() { None } else { Some(model_name.as_str()) };
         let output_override = if output_tensor.is_empty() { None } else { Some(output_tensor.as_str()) };
         let max_length_override = if max_length == 0 { None } else { Some(max_length) };
         let execution_providers_override = if execution_providers.is_empty() { None } else { Some(execution_providers.as_str()) };
         let padding_override = if padding.is_empty() { None } else { Some(padding.as_str()) };
+        let max_input_chars_override = if max_input_chars == 0 { None } else { Some(max_input_chars) };
         let overrides = ModelLoadOverrides {
             model_name: name,
             output_tensor: output_override,
             max_length: max_length_override,
             padding: padding_override,
             execution_providers: execution_providers_override,
+            lowercase_input: Some(lowercase_input),
+            max_input_chars: max_input_chars_override,
         };
         let embedder = Embedder::from_dir(&dir_path, optimization_level, overrides)
             .map_err(magnus::Error::from)?;
-        Ok(RbEmbedder { inner: Arc::new(embedder), normalize })
+        let skip_normalize = normalize && output_name_suggests_normalized(&embedder.config.output_tensor);
+        Ok(RbEmbedder { inner: Arc::new(embedder), normalize: normalize && !skip_normalize })
     }
 
     pub fn rb_embed(_ruby: &Ruby, rb_self: &Self, texts: RArray) -> Result<RbTensor, Error> {
@@ -218,6 +224,8 @@ impl RbReranker {
         max_length: usize,
         padding: String,
         execution_providers: String,
+        _lowercase_input: bool,
+        _max_input_chars: usize,
     ) -> Result<Self, Error> {
         let name = if model_name.is_empty() { None } else { Some(model_name.as_str()) };
         let output_override = if output_tensor.is_empty() { None } else { Some(output_tensor.as_str()) };
@@ -230,6 +238,7 @@ impl RbReranker {
             max_length: max_length_override,
             padding: padding_override,
             execution_providers: execution_providers_override,
+            ..ModelLoadOverrides::default()
         };
         let reranker = Reranker::from_dir(&dir_path, optimization_level, overrides)
             .map_err(magnus::Error::from)?;
@@ -340,12 +349,12 @@ impl RbTensor {
 pub fn register(ruby: &Ruby) -> Result<(), Error> {
     let module = ruby.define_module("GTE")?;
     let embedder_class = module.define_class("Embedder", ruby.class_object())?;
-    embedder_class.define_singleton_method("new", function!(RbEmbedder::rb_new, 8))?;
+    embedder_class.define_singleton_method("new", function!(RbEmbedder::rb_new, 10))?;
     embedder_class.define_method("embed", method!(RbEmbedder::rb_embed, 1))?;
     embedder_class.define_method("embed_one", method!(RbEmbedder::rb_embed_one, 1))?;
 
     let reranker_class = module.define_class("Reranker", ruby.class_object())?;
-    reranker_class.define_singleton_method("new", function!(RbReranker::rb_new, 8))?;
+    reranker_class.define_singleton_method("new", function!(RbReranker::rb_new, 10))?;
     reranker_class.define_method("score", method!(RbReranker::rb_score, 2))?;
 
     let tensor_class = module.define_class("Tensor", ruby.class_object())?;
