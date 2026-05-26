@@ -1,4 +1,6 @@
-require "active_support/core_ext/integer/time"
+# frozen_string_literal: true
+
+require 'active_support/core_ext/integer/time'
 
 Rails.application.configure do
   config.enable_reloading = false
@@ -7,4 +9,4 @@ Rails.application.configure do
   config.log_level = :warn
 end
 
-Rails.application.config.secret_key_base = ENV.fetch("SECRET_KEY_BASE", "b" * 128)
+Rails.application.config.secret_key_base = ENV.fetch('SECRET_KEY_BASE', 'b' * 128)

@@ -30,7 +30,7 @@ module GTE
 
     def warmup(runner, threads:)
       threads.times.map do
-        Thread.new { runner.embed("warmup") }
+        Thread.new { runner.embed('warmup') }
       end.each(&:join)
     end
 

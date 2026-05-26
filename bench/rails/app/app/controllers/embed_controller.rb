@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class EmbedController < ApplicationController
   def show
     text = params[:text].to_s
@@ -7,7 +9,7 @@ class EmbedController < ApplicationController
 
     render json: { runtime: RUNTIME.name, dim: vector.length,
                    ms: elapsed, embedding: vector }
-  rescue => e
+  rescue StandardError => e
     render json: { error: e.class.name, message: e.message }, status: 500
   end
 end
