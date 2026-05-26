@@ -164,11 +164,17 @@ Session pool sizing:
 - Defaults to 1 (text embedding graphs are linear chains with no independent parallel nodes).
 - Override with `GTE_INTER_OP_NUM_THREADS` env var.
 
-### Execution Provider Auto-Detect
+### Execution Providers
 
-On `aarch64`, `gte` automatically tries XNNPACK for optimized CPU inference.
-Falls back to ORT default CPU provider if unavailable.
-Set `GTE_EXECUTION_PROVIDERS=cpu` or override explicitly to control provider selection.
+Default behavior is ORT's default CPU provider (no explicit provider registration).
+Configure with `GTE_EXECUTION_PROVIDERS` to register specific providers.
+
+```bash
+export GTE_EXECUTION_PROVIDERS=xnnpack
+export GTE_EXECUTION_PROVIDERS=xnnpack,coreml
+```
+
+Set `cpu` or `none` to force ORT default CPU (skip any provider registration).
 
 ### Session Pre-Warming
 
@@ -206,31 +212,6 @@ A model directory must include `tokenizer.json` and one ONNX model, resolved in 
 
 Input policy is text-only. Graphs requiring unsupported multimodal inputs (such as `pixel_values`) are intentionally rejected.
 
-## Execution Providers
-
-`gte` auto-detects the best execution provider. On `aarch64`, XNNPACK is tried first
-and falls back to ORT's default CPU provider if unavailable.
-
-Configure providers explicitly with `GTE_EXECUTION_PROVIDERS` (comma-separated, case-insensitive).
-Supported values:
-
-- `cpu` or `none`: explicit CPU fallback (skip XNNPACK auto-detect)
-- `xnnpack`
-- `coreml`
-
-Examples:
-
-```bash
-export GTE_EXECUTION_PROVIDERS=xnnpack,coreml
-```
-
-Ruby per-instance override (takes precedence over `GTE_EXECUTION_PROVIDERS`):
-
-```ruby
-model = GTE.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
-  config.with(execution_providers: "cpu")
-end
-```
 
 ## Development
 
