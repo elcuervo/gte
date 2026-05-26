@@ -62,3 +62,20 @@ clean:
 	rm -rf .bundle-gems vendor/bundle
 
 ci: lint test
+
+bench-docker-build:
+	cd bench/rails && ./scripts/build.sh
+
+bench-docker-siglip2: bench-docker-build
+	cd bench/rails && MODEL=siglip2 docker compose up -d --wait 2>&1
+	@sleep 3
+	cd bench/rails && ./scripts/stress.sh gte siglip2 4 15
+	cd bench/rails && ./scripts/stress.sh pure-ruby siglip2 4 15
+	cd bench/rails && docker compose down 2>&1
+	@echo "Results: bench/rails/results/siglip2_*.json"
+
+bench-docker-sweep-siglip2: bench-docker-build
+	cd bench/rails && ./scripts/sweep.sh siglip2 15
+
+bench-docker-compare: bench-docker-build
+	cd bench/rails && ./scripts/compare.sh 15

@@ -1,0 +1,7 @@
+models/
+results/
+stress/
+scripts/
+tmp/
+log/
+.git/

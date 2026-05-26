@@ -11,6 +11,10 @@ tmp/
 # Benchmark artifacts
 bench/results/
 bench/__pycache__/
+bench/rails/results/
+bench/rails/models/
+bench/rails/app/tmp/
+bench/rails/app/log/
 
 # Downloaded models
 models/

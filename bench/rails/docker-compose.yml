@@ -1,0 +1,34 @@
+services:
+  gte:
+    build:
+      context: ../../
+      dockerfile: bench/rails/Dockerfile
+    image: gte-bench:latest
+    environment:
+      BENCH_RUNTIME: gte
+      BENCH_MODEL: ${MODEL:-siglip2}
+      MODEL_DIR: /models/${MODEL:-siglip2}
+    volumes:
+      - ../../models:/models:ro
+    ports:
+      - "${GTE_PORT:-3001}:3000"
+    cpus: 4
+    mem_limit: 3g
+    restart: "no"
+
+  pure-ruby:
+    build:
+      context: ../../
+      dockerfile: bench/rails/Dockerfile
+    image: gte-bench:latest
+    environment:
+      BENCH_RUNTIME: pure_ruby
+      BENCH_MODEL: ${MODEL:-siglip2}
+      MODEL_DIR: /models/${MODEL:-siglip2}
+    volumes:
+      - ../../models:/models:ro
+    ports:
+      - "${PURE_PORT:-3002}:3000"
+    cpus: 4
+    mem_limit: 3g
+    restart: "no"
