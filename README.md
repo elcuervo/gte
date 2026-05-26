@@ -58,6 +58,8 @@ Notes:
 
 - Return a `Config::Text` from the block (for example, `config.with(...)`).
 - Model instances are cached by full config key; different config values create different cached instances.
+- `GTE.warmup(model, threads:)` pre-warms thread-local ONNX sessions eagerly at boot.
+  Useful in multi-threaded servers (Puma, Sidekiq) to avoid ~100-500ms cold-start latency.
 
 Common model presets:
 
@@ -73,7 +75,7 @@ end
 
 siglip2 = GTE.config(ENV.fetch("GTE_SIGLIP2_DIR")) do |config|
   config.with(
-    model_name: "text_model_int8.onnx",
+    model_name: "text_model.onnx",
     output_tensor: "pooler_output",
     max_length: 64,
     execution_providers: "cpu"
@@ -147,6 +149,40 @@ Session pool sizing:
 - `GTE_SESSION_POOL_CAP`: optional positive integer cap for internal ONNX session pool size.
 - Unset by default; runtime uses available CPU parallelism.
 
+## Automatic Tuning
+
+`gte` automatically adapts to the hardware — no configuration required.
+
+### ONNX Intra-op Threads
+
+- Auto-detected via `std::thread::available_parallelism()` capped at 4.
+- Prevents oversubscription on high-concurrency workloads.
+- Override with `GTE_INTRA_OP_NUM_THREADS` env var.
+
+### ONNX Inter-op Threads
+
+- Defaults to 1 (text embedding graphs are linear chains with no independent parallel nodes).
+- Override with `GTE_INTER_OP_NUM_THREADS` env var.
+
+### Execution Provider Auto-Detect
+
+On `aarch64`, `gte` automatically tries XNNPACK for optimized CPU inference.
+Falls back to ORT default CPU provider if unavailable.
+Set `GTE_EXECUTION_PROVIDERS=cpu` or override explicitly to control provider selection.
+
+### Session Pre-Warming
+
+ONNX sessions are created lazily per OS thread. In multi-threaded servers (Puma, Sidekiq),
+each thread creates its own session on first use (~100-500ms cold start).
+Pre-warm sessions eagerly at boot:
+
+```ruby
+model = GTE.config(ENV.fetch("GTE_MODEL_DIR"))
+
+# Pre-warm thread-local sessions for a Puma server with 5 threads:
+GTE.warmup(model, threads: 5)
+```
+
 ## Runtime + Result Examples
 
 Process-local reuse (recommended for Puma/web servers):
@@ -172,19 +208,19 @@ Input policy is text-only. Graphs requiring unsupported multimodal inputs (such 
 
 ## Execution Providers
 
-Default behavior is CPU fallback via ONNX Runtime's default provider (no explicit provider registration).
+`gte` auto-detects the best execution provider. On `aarch64`, XNNPACK is tried first
+and falls back to ORT's default CPU provider if unavailable.
 
-Configure providers with `GTE_EXECUTION_PROVIDERS` (comma-separated, case-insensitive).
+Configure providers explicitly with `GTE_EXECUTION_PROVIDERS` (comma-separated, case-insensitive).
 Supported values:
 
-- `cpu` or `none`: CPU fallback (skip explicit provider registration)
+- `cpu` or `none`: explicit CPU fallback (skip XNNPACK auto-detect)
 - `xnnpack`
 - `coreml`
 
 Examples:
 
 ```bash
-export GTE_EXECUTION_PROVIDERS=cpu
 export GTE_EXECUTION_PROVIDERS=xnnpack,coreml
 ```
 
@@ -208,9 +244,51 @@ make lint
 make ci
 ```
 
-## Benchmark
+## Benchmarks
 
-The repo includes a shared multi-runtime benchmark harness:
+### Docker Rails+Puma+wrk (Real-World HTTP)
+
+The `bench/rails/` directory contains a full-stack benchmark: Rails 7.1 API app served by Puma,
+loaded with wrk (randomized text queries, 135 diverse texts).
+
+Run for all models:
+
+```bash
+make bench-docker-compare
+```
+
+Run for a single model:
+
+```bash
+make bench-docker-sweep-siglip2
+make bench-docker-validate  # cross-validation checks
+```
+
+#### Siglip2 (768-dim, pooler_output)
+
+| Concurrency | GTE p90 | Pure Ruby p90 | Ratio | GTE RPS | Pure Ruby RPS |
+|------------|---------|---------------|-------|---------|---------------|
+| c=1 | ~12ms | ~120ms | 9-10× | ~95 | ~10 |
+| c=4 | ~39ms | ~503ms | 10-13× | ~228 | ~10 |
+| c=8 | ~146ms | ~613ms | 3-4× | ~224 | ~10 |
+| c=16 | ~430ms | ~611ms | 1-1.5× | ~226 | ~11 |
+
+#### E5 (384-dim, last_hidden_state + mean pool)
+
+| Concurrency | GTE p90 | Pure Ruby p90 | Ratio | GTE RPS | Pure Ruby RPS |
+|------------|---------|---------------|-------|---------|---------------|
+| c=1 | ~7ms | ~120ms | 16-17× | ~160 | ~10 |
+| c=4 | ~12ms | ~430ms | 35-40× | ~477 | ~10 |
+| c=8 | ~64ms | ~530ms | 8-9× | ~503 | ~10 |
+| c=16 | ~205ms | ~534ms | 2-3× | ~509 | ~11 |
+
+GTE releases the GVL during ONNX inference, enabling true parallelism across Puma threads.
+Pure Ruby is GVL-bound (~10 RPS regardless of concurrency).
+
+The Puma thread pool (min=2, max=5) limits throughput at c=16+.
+GTE's pipelining and GVL release already saturate the available threads at c=4.
+
+### In-Process Benchmarks
 
 ```bash
 make bench
