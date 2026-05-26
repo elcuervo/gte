@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# rubocop:disable Style/OneClassPerFile
+
 require 'gte'
 require 'onnxruntime'
 require 'tokenizers'
@@ -26,6 +28,7 @@ module GteRuntimeWrapper
     def name = 'gte'
 
     def initialize(model_dir)
+      super()
       @model = GTE.config(model_dir) do |c|
         c.with(model_name: 'model.onnx', output_tensor: 'last_hidden_state',
                max_length: 512, execution_providers: 'cpu')
@@ -39,6 +42,7 @@ module GteRuntimeWrapper
     def name = 'gte'
 
     def initialize(model_dir)
+      super()
       @model = GTE.config(model_dir) do |c|
         c.with(model_name: 'text_model.onnx', output_tensor: 'pooler_output',
                max_length: 64, execution_providers: 'cpu')
@@ -50,6 +54,7 @@ module GteRuntimeWrapper
     def name = 'gte'
 
     def initialize(model_dir)
+      super()
       @model = GTE.config(model_dir) do |c|
         c.with(output_tensor: 'sentence_embedding',
                max_length: 512, execution_providers: 'cpu')
@@ -163,3 +168,5 @@ RUNTIME = case ENV.fetch('BENCH_RUNTIME', 'gte')
           when 'pure_ruby' then PureRubyRuntime.build(ENV.fetch('MODEL_DIR'))
           else raise "Unknown BENCH_RUNTIME=#{ENV.fetch('BENCH_RUNTIME')}"
           end
+
+# rubocop:enable Style/OneClassPerFile
