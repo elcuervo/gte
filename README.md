@@ -166,15 +166,17 @@ Session pool sizing:
 
 ### Execution Providers
 
-Default behavior is ORT's default CPU provider (no explicit provider registration).
-Configure with `GTE_EXECUTION_PROVIDERS` to register specific providers.
+On `aarch64`, `gte` automatically registers XNNPACK for optimized CPU inference
+(same numerical results, faster kernels). Falls back to ORT's default CPU
+provider if unavailable.
+
+Configure providers explicitly with `GTE_EXECUTION_PROVIDERS` (comma-separated):
 
 ```bash
-export GTE_EXECUTION_PROVIDERS=xnnpack
 export GTE_EXECUTION_PROVIDERS=xnnpack,coreml
 ```
 
-Set `cpu` or `none` to force ORT default CPU (skip any provider registration).
+Set `cpu` or `none` to skip auto-detect and use ORT's default CPU provider.
 
 ### Session Pre-Warming
 

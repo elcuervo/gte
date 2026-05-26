@@ -103,21 +103,36 @@ pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Res
         .unwrap_or(1);
     builder = builder.with_inter_threads(inter_threads).map_err(ort_err)?;
 
-    if let Some(order) = config.execution_providers.as_deref() {
-        let providers = preferred_execution_providers(Some(order));
-        if !providers.is_empty() {
-            builder = builder.with_execution_providers(providers).map_err(ort_err)?;
-        }
+    let providers = match config.execution_providers.as_deref() {
+        Some(override_val) => preferred_execution_providers(Some(override_val)),
+        None => auto_detect_providers(),
+    };
+    if !providers.is_empty() {
+        builder = builder.with_execution_providers(providers).map_err(ort_err)?;
     }
 
     builder.commit_from_file(model_path).map_err(ort_err)
 }
 
+fn auto_detect_providers() -> Vec<ExecutionProviderDispatch> {
+    let mut providers = Vec::new();
+    #[cfg(target_arch = "aarch64")]
+    providers.push(XNNPACKExecutionProvider::default().build().fail_silently());
+    providers
+}
+
 fn preferred_execution_providers(order_override: Option<&str>) -> Vec<ExecutionProviderDispatch> {
-    let order = resolve_provider_order(order_override);
+    let order = match order_override {
+        Some(s) => s.to_ascii_lowercase(),
+        None => return auto_detect_providers(),
+    };
+
+    if order.is_empty() || order == "cpu" || order == "none" {
+        return Vec::new();
+    }
 
     let mut providers = Vec::new();
-    for provider in parse_provider_registrations(order.as_str()) {
+    for provider in order.split(',').map(str::trim).filter(|p| !p.is_empty()) {
         match provider {
             "xnnpack" => {
                 providers.push(XNNPACKExecutionProvider::default().build().fail_silently());
