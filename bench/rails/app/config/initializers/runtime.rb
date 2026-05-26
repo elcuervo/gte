@@ -28,6 +28,8 @@ module GteRuntimeWrapper
                max_length: 512, execution_providers: "cpu")
       end
     end
+
+    def embed(text) = @model["query: #{text}"]
   end
 
   class Siglip2 < Base
