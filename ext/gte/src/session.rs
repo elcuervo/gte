@@ -97,16 +97,34 @@ pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Res
         });
     builder = builder.with_intra_threads(intra_threads).map_err(ort_err)?;
 
-    if let Some(n) = std::env::var("GTE_INTER_OP_NUM_THREADS").ok().and_then(|v| v.trim().parse::<usize>().ok()) {
-        builder = builder.with_inter_threads(n).map_err(ort_err)?;
-    }
+    let inter_threads = std::env::var("GTE_INTER_OP_NUM_THREADS")
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .unwrap_or(1);
+    builder = builder.with_inter_threads(inter_threads).map_err(ort_err)?;
 
-    let providers = preferred_execution_providers(config.execution_providers.as_deref());
-    if !providers.is_empty() {
-        builder = builder.with_execution_providers(providers).map_err(ort_err)?;
+    let effective_providers = if let Some(order) = config.execution_providers.as_deref() {
+        if order.trim().is_empty() || order.eq_ignore_ascii_case("cpu") || order.eq_ignore_ascii_case("none") {
+            auto_detect_providers()
+        } else {
+            preferred_execution_providers(Some(order))
+        }
+    } else {
+        auto_detect_providers()
+    };
+
+    if !effective_providers.is_empty() {
+        builder = builder.with_execution_providers(effective_providers).map_err(ort_err)?;
     }
 
     builder.commit_from_file(model_path).map_err(ort_err)
+}
+
+fn auto_detect_providers() -> Vec<ExecutionProviderDispatch> {
+    let mut providers = Vec::new();
+    #[cfg(target_arch = "aarch64")]
+    providers.push(XNNPACKExecutionProvider::default().build().fail_silently());
+    providers
 }
 
 fn preferred_execution_providers(order_override: Option<&str>) -> Vec<ExecutionProviderDispatch> {
