@@ -166,9 +166,14 @@ Session pool sizing:
 
 ### Execution Providers
 
-On `aarch64`, `gte` automatically registers XNNPACK for optimized CPU inference
-(same numerical results, faster kernels). Falls back to ORT's default CPU
-provider if unavailable.
+`gte` automatically tries XNNPACK for optimized CPU inference. Falls back to
+ORT's default CPU provider if unavailable.
+
+- **ARM64** (Apple Silicon, AWS Graviton): XNNPACK is typically **~25% faster**
+  than plain CPU while producing identical embeddings (cos=1.0, max_abs=0.0).
+- **x86/x64** (Intel, AMD): XNNPACK offers minimal benefit — ORT's default CPU
+  provider already uses MKL-DNN/oneDNN, which are better tuned for these chips.
+  The auto-detect silently falls back to the default provider.
 
 Configure providers explicitly with `GTE_EXECUTION_PROVIDERS` (comma-separated):
 
