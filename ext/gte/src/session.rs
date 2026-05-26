@@ -131,36 +131,16 @@ fn preferred_execution_providers(order_override: Option<&str>) -> Vec<ExecutionP
         return Vec::new();
     }
 
-    let mut providers = Vec::new();
-    for provider in order.split(',').map(str::trim).filter(|p| !p.is_empty()) {
-        match provider {
-            "xnnpack" => {
-                providers.push(XNNPACKExecutionProvider::default().build().fail_silently());
-            }
-            "coreml" => providers.push(CoreMLExecutionProvider::default().build().fail_silently()),
-            _ => {}
-        }
-    }
-    providers
-}
-
-fn resolve_provider_order(order_override: Option<&str>) -> String {
-    let env_order = std::env::var("GTE_EXECUTION_PROVIDERS").ok();
-    resolve_provider_order_with_env(order_override, env_order.as_deref())
-}
-
-fn resolve_provider_order_with_env(order_override: Option<&str>, env_order: Option<&str>) -> String {
-    order_override.or(env_order).unwrap_or("cpu").to_ascii_lowercase()
-}
-
-fn parse_provider_registrations(order: &str) -> Vec<&str> {
-    let mut providers = Vec::new();
-    for provider in order.split(',').map(str::trim).filter(|p| !p.is_empty()) {
-        match provider {
-            "xnnpack" | "coreml" => providers.push(provider),
-            _ => {}
-        }
-    }
+    let providers: Vec<_> = order
+        .split(',')
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .filter_map(|provider| match provider {
+            "xnnpack" => Some(XNNPACKExecutionProvider::default().build().fail_silently()),
+            "coreml" => Some(CoreMLExecutionProvider::default().build().fail_silently()),
+            _ => None,
+        })
+        .collect();
     providers
 }
 
@@ -213,7 +193,22 @@ mod tests {
     use crate::model_config::{ExtractorMode, ModelConfig, PaddingMode};
     use ndarray::{array, ArrayView2};
 
-    use super::{extract_embeddings, parse_provider_registrations, resolve_provider_order_with_env};
+    use super::extract_embeddings;
+
+    fn resolve_provider_order_with_env(order_override: Option<&str>, env_order: Option<&str>) -> String {
+        order_override.or(env_order).unwrap_or("cpu").to_ascii_lowercase()
+    }
+
+    fn parse_provider_registrations(order: &str) -> Vec<&str> {
+        let mut providers = Vec::new();
+        for provider in order.split(',').map(str::trim).filter(|p| !p.is_empty()) {
+            match provider {
+                "xnnpack" | "coreml" => providers.push(provider),
+                _ => {}
+            }
+        }
+        providers
+    }
 
     fn test_config(mode: ExtractorMode) -> ModelConfig {
         ModelConfig {
