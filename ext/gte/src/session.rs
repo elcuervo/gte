@@ -87,9 +87,15 @@ pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Res
 
     let mut builder = Session::builder().map_err(ort_err)?.with_optimization_level(opt_level).map_err(ort_err)?;
 
-    if let Some(n) = std::env::var("GTE_INTRA_OP_NUM_THREADS").ok().and_then(|v| v.trim().parse::<usize>().ok()) {
-        builder = builder.with_intra_threads(n).map_err(ort_err)?;
-    }
+    let intra_threads = std::env::var("GTE_INTRA_OP_NUM_THREADS")
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .unwrap_or_else(|| {
+            std::thread::available_parallelism()
+                .map(|n| n.get().min(4))
+                .unwrap_or(1)
+        });
+    builder = builder.with_intra_threads(intra_threads).map_err(ort_err)?;
 
     if let Some(n) = std::env::var("GTE_INTER_OP_NUM_THREADS").ok().and_then(|v| v.trim().parse::<usize>().ok()) {
         builder = builder.with_inter_threads(n).map_err(ort_err)?;

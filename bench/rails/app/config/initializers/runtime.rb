@@ -127,7 +127,10 @@ module PureRubyRuntime
 end
 
 RUNTIME = case ENV.fetch("BENCH_RUNTIME", "gte")
-          when "gte"        then GteRuntimeWrapper.build(ENV.fetch("MODEL_DIR"))
+          when "gte"
+            model = GteRuntimeWrapper.build(ENV.fetch("MODEL_DIR"))
+            GTE.warmup(model, threads: 5)
+            model
           when "pure_ruby"  then PureRubyRuntime.build(ENV.fetch("MODEL_DIR"))
           else raise "Unknown BENCH_RUNTIME=#{ENV.fetch("BENCH_RUNTIME")}"
           end

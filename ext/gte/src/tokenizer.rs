@@ -105,10 +105,10 @@ fn resolve_padding_strategy(
 fn build_tokenized_single(encoding: &tokenizers::Encoding, with_type_ids: bool) -> Tokenized {
     let cols = encoding.len();
 
-    let input_ids: Vec<i64> = encoding.get_ids().iter().map(|&value| i64::from(value)).collect();
-    let attn_masks: Vec<i64> = encoding.get_attention_mask().iter().map(|&value| i64::from(value)).collect();
+    let input_ids: Vec<i64> = encoding.get_ids().iter().map(|&v| i64::from(v)).collect();
+    let attn_masks: Vec<i64> = encoding.get_attention_mask().iter().map(|&v| i64::from(v)).collect();
     let type_ids: Option<Vec<i64>> =
-        with_type_ids.then(|| encoding.get_type_ids().iter().map(|&value| i64::from(value)).collect());
+        with_type_ids.then(|| encoding.get_type_ids().iter().map(|&v| i64::from(v)).collect());
 
     Tokenized { rows: 1, cols, input_ids, attn_masks, type_ids }
 }
@@ -123,17 +123,11 @@ fn build_tokenized(encodings: &[tokenizers::Encoding], with_type_ids: bool) -> T
     let mut type_ids = with_type_ids.then(|| Vec::with_capacity(len));
 
     for encoding in encodings {
-        for &value in encoding.get_ids() {
-            input_ids.push(i64::from(value));
-        }
-        for &value in encoding.get_attention_mask() {
-            attn_masks.push(i64::from(value));
-        }
+        input_ids.extend(encoding.get_ids().iter().map(|&v| i64::from(v)));
+        attn_masks.extend(encoding.get_attention_mask().iter().map(|&v| i64::from(v)));
 
         if let Some(type_ids) = type_ids.as_mut() {
-            for &value in encoding.get_type_ids() {
-                type_ids.push(i64::from(value));
-            }
+            type_ids.extend(encoding.get_type_ids().iter().map(|&v| i64::from(v)));
         }
     }
 

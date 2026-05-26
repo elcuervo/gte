@@ -36,10 +36,10 @@ parse_ms() {
   esac
 }
 
-P50=$(parse_ms "$(echo "$RAW" | grep "50%" | head -1 | awk '{print $2}')")
-P75=$(parse_ms "$(echo "$RAW" | grep "75%" | head -1 | awk '{print $2}')")
-P90=$(parse_ms "$(echo "$RAW" | grep "90%" | head -1 | awk '{print $2}')")
-P99=$(parse_ms "$(echo "$RAW" | grep "99%" | head -1 | awk '{print $2}')")
+P50=$(parse_ms "$(echo "$RAW" | grep -E "^[[:space:]]+50%" | awk '{print $2}')")
+P75=$(parse_ms "$(echo "$RAW" | grep -E "^[[:space:]]+75%" | awk '{print $2}')")
+P90=$(parse_ms "$(echo "$RAW" | grep -E "^[[:space:]]+90%" | awk '{print $2}')")
+P99=$(parse_ms "$(echo "$RAW" | grep -E "^[[:space:]]+99%" | awk '{print $2}')")
 NON_2XX=$(echo "$RAW" | grep "Non-2xx" | awk '{print $NF}' || echo "0")
 
 python3 -c "

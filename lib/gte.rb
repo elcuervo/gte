@@ -28,6 +28,12 @@ module GTE
       end
     end
 
+    def warmup(runner, threads:)
+      threads.times.map do
+        Thread.new { runner.embed("warmup") }
+      end.each(&:join)
+    end
+
     private
 
     def cache_key(cfg)

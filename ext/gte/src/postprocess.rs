@@ -83,6 +83,8 @@ fn mean_pool_contiguous(
     seq: usize,
     dim: usize,
 ) {
+    let seq_inverse = (seq as f32).recip();
+
     for batch_index in 0..batch {
         let mask_base = batch_index * seq;
         let hidden_base = batch_index * seq * dim;
@@ -97,9 +99,8 @@ fn mean_pool_contiguous(
                 }
             }
 
-            let inverse = (seq as f32).recip();
             for value in output_row {
-                *value *= inverse;
+                *value *= seq_inverse;
             }
             continue;
         }
@@ -107,12 +108,11 @@ fn mean_pool_contiguous(
         let mut weight_sum = 0.0f32;
 
         for (token_index, &weight_raw) in mask_row.iter().enumerate() {
-            let weight = weight_raw;
-            if weight <= 0 {
+            if weight_raw <= 0 {
                 continue;
             }
 
-            let weight = weight as f32;
+            let weight = weight_raw as f32;
             let token_base = hidden_base + token_index * dim;
             for dim_index in 0..dim {
                 output_row[dim_index] += hidden[token_base + dim_index] * weight;
