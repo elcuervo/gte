@@ -90,17 +90,11 @@ pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Res
     let intra_threads = std::env::var("GTE_INTRA_OP_NUM_THREADS")
         .ok()
         .and_then(|v| v.trim().parse::<usize>().ok())
-        .unwrap_or_else(|| {
-            std::thread::available_parallelism()
-                .map(|n| n.get().min(4))
-                .unwrap_or(1)
-        });
+        .unwrap_or_else(|| std::thread::available_parallelism().map(|n| n.get().min(4)).unwrap_or(1));
     builder = builder.with_intra_threads(intra_threads).map_err(ort_err)?;
 
-    let inter_threads = std::env::var("GTE_INTER_OP_NUM_THREADS")
-        .ok()
-        .and_then(|v| v.trim().parse::<usize>().ok())
-        .unwrap_or(1);
+    let inter_threads =
+        std::env::var("GTE_INTER_OP_NUM_THREADS").ok().and_then(|v| v.trim().parse::<usize>().ok()).unwrap_or(1);
     builder = builder.with_inter_threads(inter_threads).map_err(ort_err)?;
 
     let providers = match config.execution_providers.as_deref() {
