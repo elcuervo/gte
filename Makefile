@@ -29,7 +29,7 @@ lint:
 
 fmt:
 	$(NIX) cargo fmt --manifest-path ext/gte/Cargo.toml --all
-	$(NIX) $(BUNDLE_ENV) bundle exec rubocop -A
+	-$(NIX) $(BUNDLE_ENV) bundle exec rubocop -A
 
 fmt-check:
 	$(NIX) cargo fmt --manifest-path ext/gte/Cargo.toml --all -- --check
