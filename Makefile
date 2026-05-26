@@ -79,3 +79,6 @@ bench-docker-sweep-siglip2: bench-docker-build
 
 bench-docker-compare: bench-docker-build
 	cd bench/rails && ./scripts/compare.sh 15
+
+bench-docker-validate: bench-docker-build
+	cd bench/rails && ./scripts/validate.sh $(filter-out $@,$(MAKECMDGOALS))

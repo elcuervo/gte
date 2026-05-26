@@ -86,7 +86,7 @@ module PureRubyRuntime
 
   def self.find_output(model, preferred)
     outputs = model.outputs.map { |o| o[:name] }
-    outputs.find { |n| n.downcase == preferred } || outputs.first || "last_hidden_state"
+    outputs.find { |n| n&.downcase == preferred } || outputs.first || "last_hidden_state"
   end
 
   class Base
@@ -95,17 +95,39 @@ module PureRubyRuntime
       @model = model
       @tokenizer = tokenizer
       @output_key = output_key
+      @model_inputs = model.inputs.map { |i| i[:name] }
     end
 
     def embed_batch(text, prefix)
       input = prefix ? "#{prefix}#{text}" : text
+      @tokenizer.no_padding
       encoded = @tokenizer.encode(input)
-      result = @model.predict({ input_ids: [encoded.ids] }, output_names: [@output_key])
-      output = result.fetch(@output_key).first
+      inputs = { input_ids: [encoded.ids] }
+      inputs[:attention_mask] = [encoded.attention_mask] if @model_inputs.include?("attention_mask")
+      inputs[:token_type_ids] = [encoded.type_ids] if @model_inputs.include?("token_type_ids")
+      result = @model.predict(inputs, output_names: [@output_key])
+      output = result.fetch(@output_key)
+      if output.first.first.is_a?(Array)
+        output = mean_pool(output.first, encoded.attention_mask)
+      else
+        output = output.first
+      end
       l2_normalize(output)
     end
 
     private
+
+    def mean_pool(hidden, mask)
+      dim = hidden.first.length
+      result = Array.new(dim, 0.0)
+      count = 0.0
+      hidden.each_with_index do |token_vec, i|
+        next if mask[i] == 0
+        token_vec.each_with_index { |v, j| result[j] += v }
+        count += 1
+      end
+      result.map! { |v| v / count }
+    end
 
     def l2_normalize(vector)
       sum = Math.sqrt(vector.map { |v| v * v }.sum)
