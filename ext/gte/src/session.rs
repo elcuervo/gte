@@ -6,9 +6,10 @@ use crate::tokenizer::Tokenized;
 use ndarray::{Array2, ArrayView2, ArrayViewD, Ix2};
 use ort::execution_providers::{CoreMLExecutionProvider, ExecutionProviderDispatch, XNNPACKExecutionProvider};
 use ort::session::{OutputSelector, RunOptions, Session};
+use parking_lot::Mutex;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 // ---------------------------------------------------------------------------
 // Lazy session pool — starts with 1 session, grows on contention, capped.
@@ -67,26 +68,28 @@ impl SessionPool {
     where
         F: FnOnce(&mut Session) -> Result<R>,
     {
-        loop {
-            let len = {
-                let inner = self.inner.lock().unwrap();
-                inner.sessions.len()
-            };
+        const SPIN_LIMIT: u32 = 64;
 
+        loop {
+            // Snapshot the pool under the outer lock so the scan below
+            // doesn't contend on that lock at all.
+            let arcs: Vec<Arc<Mutex<Session>>> = {
+                let inner = self.inner.lock();
+                inner.sessions.clone()
+            };
+            let len = arcs.len();
             let start = self.next_idx.fetch_add(1, Ordering::Relaxed) % len;
 
-            // Try to acquire a free session without blocking
             for offset in 0..len {
                 let idx = (start + offset) % len;
-                match self.inner.lock().unwrap().sessions[idx].try_lock() {
-                    Ok(mut guard) => return f(&mut guard),
-                    Err(_) => continue,
+                if let Some(mut guard) = arcs[idx].try_lock() {
+                    return f(&mut guard);
                 }
             }
 
-            // All sessions are busy — try to grow the pool
+            // All sessions busy — try to grow the pool
             let grew = {
-                let mut inner = self.inner.lock().unwrap();
+                let mut inner = self.inner.lock();
                 if inner.sessions.len() < self.cap {
                     match build_session(&inner.model_path, &inner.build_config) {
                         Ok(session) => {
@@ -101,16 +104,21 @@ impl SessionPool {
             };
 
             if grew {
-                continue; // retry with the new session available
+                continue;
             }
 
-            // At cap — block on the next session in the ring
-            let arc = {
-                let inner = self.inner.lock().unwrap();
-                let idx = self.next_idx.fetch_add(1, Ordering::Relaxed) % inner.sessions.len();
-                Arc::clone(&inner.sessions[idx])
-            };
-            let mut guard = arc.lock().unwrap_or_else(|e| e.into_inner());
+            // At cap — spin briefly, then block on a session
+            let idx = self.next_idx.fetch_add(1, Ordering::Relaxed) % len;
+            let arc = Arc::clone(&arcs[idx]);
+
+            for _ in 0..SPIN_LIMIT {
+                if let Some(mut guard) = arc.try_lock() {
+                    return f(&mut guard);
+                }
+                std::hint::spin_loop();
+            }
+
+            let mut guard = arc.lock();
             return f(&mut guard);
         }
     }
