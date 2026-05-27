@@ -7,6 +7,33 @@ require 'onnxruntime'
 require 'tokenizers'
 require 'numo/narray'
 
+module GteRuntime
+  class << self
+    def warmup!
+      runtime
+    end
+
+    def runtime
+      @runtime ||= build_runtime
+    end
+
+    private
+
+    def build_runtime
+      case ENV.fetch('BENCH_RUNTIME', 'gte')
+      when 'gte'
+        model = GteRuntimeWrapper.build(ENV.fetch('MODEL_DIR'))
+        GTE.warmup(model, threads: ENV.fetch('MAX_THREADS', '5').to_i)
+        model
+      when 'pure_ruby'
+        PureRubyRuntime.build(ENV.fetch('MODEL_DIR'))
+      else
+        raise "Unknown BENCH_RUNTIME=#{ENV.fetch('BENCH_RUNTIME')}"
+      end
+    end
+  end
+end
+
 module GteRuntimeWrapper
   def self.build(model_dir)
     model_dir = File.expand_path(model_dir)
@@ -159,14 +186,5 @@ module PureRubyRuntime
     def embed(text) = embed_batch(text, nil)
   end
 end
-
-RUNTIME = case ENV.fetch('BENCH_RUNTIME', 'gte')
-          when 'gte'
-            model = GteRuntimeWrapper.build(ENV.fetch('MODEL_DIR'))
-            GTE.warmup(model, threads: 5)
-            model
-          when 'pure_ruby' then PureRubyRuntime.build(ENV.fetch('MODEL_DIR'))
-          else raise "Unknown BENCH_RUNTIME=#{ENV.fetch('BENCH_RUNTIME')}"
-          end
 
 # rubocop:enable Style/OneClassPerFile

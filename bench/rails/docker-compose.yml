@@ -8,6 +8,8 @@ services:
       BENCH_RUNTIME: gte
       BENCH_MODEL: ${MODEL:-siglip2}
       MODEL_DIR: /models/${MODEL:-siglip2}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      GTE_SESSION_POOL_SIZE: ${GTE_SESSION_POOL_SIZE}
     volumes:
       - ../../models:/models:ro
     ports:
@@ -25,6 +27,7 @@ services:
       BENCH_RUNTIME: pure_ruby
       BENCH_MODEL: ${MODEL:-siglip2}
       MODEL_DIR: /models/${MODEL:-siglip2}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
     volumes:
       - ../../models:/models:ro
     ports:

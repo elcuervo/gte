@@ -6,44 +6,56 @@ use crate::tokenizer::Tokenized;
 use ndarray::{Array2, ArrayView2, ArrayViewD, Ix2};
 use ort::execution_providers::{CoreMLExecutionProvider, ExecutionProviderDispatch, XNNPACKExecutionProvider};
 use ort::session::{OutputSelector, RunOptions, Session};
-use std::cell::RefCell;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 // ---------------------------------------------------------------------------
-// Thread-local session storage — each OS thread lazily creates its own ONNX
-// session the first time it calls into a given pool.  No Mutex, no contention.
+// Lazy session pool — starts with 1 session, grows on contention, capped.
+//
+// Pool max is resolved in order:
+//   1. GTE_SESSION_POOL_SIZE env var (explicit override)
+//   2. Auto: 2 (conservative: 2× pure Ruby memory at peak, no OOM risk)
+//
+// At idle the pool holds 1 session (same memory as pure Ruby's single
+// OnnxRuntime::Model).  When all existing sessions are busy and the cap
+// hasn't been reached, a new session is created on-demand.
 // ---------------------------------------------------------------------------
 
-static NEXT_POOL_ID: AtomicUsize = AtomicUsize::new(1);
+fn resolve_pool_cap() -> usize {
+    if let Some(n) =
+        std::env::var("GTE_SESSION_POOL_SIZE").ok().and_then(|v| v.trim().parse::<usize>().ok()).filter(|&n| n > 0)
+    {
+        return n;
+    }
+    2
+}
 
-struct SessionRecipe {
+pub struct SessionPool {
+    inner: Mutex<PoolInner>,
+    next_idx: AtomicUsize,
+    cap: usize,
+}
+
+struct PoolInner {
+    sessions: Vec<Arc<Mutex<Session>>>,
     model_path: PathBuf,
     build_config: ModelConfig,
 }
 
-thread_local! {
-    static SESSIONS: RefCell<HashMap<usize, Session>> = RefCell::new(HashMap::new());
-}
-
-pub struct SessionPool {
-    pool_id: usize,
-    recipe: SessionRecipe,
-}
-
 impl SessionPool {
     pub fn new(initial: Session, model_path: &Path, build_config: &ModelConfig) -> Result<Self> {
-        let pool_id = NEXT_POOL_ID.fetch_add(1, Ordering::Relaxed);
-
-        SESSIONS.with(|map| {
-            _ = map.borrow_mut().insert(pool_id, initial);
-        });
+        let cap = resolve_pool_cap();
+        let sessions = vec![Arc::new(Mutex::new(initial))];
 
         Ok(Self {
-            pool_id,
-            recipe: SessionRecipe { model_path: model_path.to_path_buf(), build_config: build_config.clone() },
+            inner: Mutex::new(PoolInner {
+                sessions,
+                model_path: model_path.to_path_buf(),
+                build_config: build_config.clone(),
+            }),
+            next_idx: AtomicUsize::new(0),
+            cap,
         })
     }
 
@@ -55,17 +67,52 @@ impl SessionPool {
     where
         F: FnOnce(&mut Session) -> Result<R>,
     {
-        SESSIONS.with(|map| {
-            let mut map = map.borrow_mut();
-            let session = match map.entry(self.pool_id) {
-                Entry::Occupied(e) => e.into_mut(),
-                Entry::Vacant(e) => {
-                    let session = build_session(&self.recipe.model_path, &self.recipe.build_config)?;
-                    e.insert(session)
+        loop {
+            let len = {
+                let inner = self.inner.lock().unwrap();
+                inner.sessions.len()
+            };
+
+            let start = self.next_idx.fetch_add(1, Ordering::Relaxed) % len;
+
+            // Try to acquire a free session without blocking
+            for offset in 0..len {
+                let idx = (start + offset) % len;
+                match self.inner.lock().unwrap().sessions[idx].try_lock() {
+                    Ok(mut guard) => return f(&mut guard),
+                    Err(_) => continue,
+                }
+            }
+
+            // All sessions are busy — try to grow the pool
+            let grew = {
+                let mut inner = self.inner.lock().unwrap();
+                if inner.sessions.len() < self.cap {
+                    match build_session(&inner.model_path, &inner.build_config) {
+                        Ok(session) => {
+                            inner.sessions.push(Arc::new(Mutex::new(session)));
+                            true
+                        }
+                        Err(e) => return Err(e),
+                    }
+                } else {
+                    false
                 }
             };
-            f(session)
-        })
+
+            if grew {
+                continue; // retry with the new session available
+            }
+
+            // At cap — block on the next session in the ring
+            let arc = {
+                let inner = self.inner.lock().unwrap();
+                let idx = self.next_idx.fetch_add(1, Ordering::Relaxed) % inner.sessions.len();
+                Arc::clone(&inner.sessions[idx])
+            };
+            let mut guard = arc.lock().unwrap_or_else(|e| e.into_inner());
+            return f(&mut guard);
+        }
     }
 }
 
