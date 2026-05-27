@@ -58,8 +58,8 @@ Notes:
 
 - Return a `Config::Text` from the block (for example, `config.with(...)`).
 - Model instances are cached by full config key; different config values create different cached instances.
-- `GTE.warmup(model, threads:)` pre-warms thread-local ONNX sessions eagerly at boot.
-  Useful in multi-threaded servers (Puma, Sidekiq) to avoid ~100-500ms cold-start latency.
+- `GTE.warmup(model, threads:)` pre-grows the lazy session pool to its auto cap.
+  Useful at boot in multi-threaded servers (Puma, Sidekiq) to avoid ~100-500ms cold-start latency.
 
 Common model presets:
 
@@ -144,25 +144,9 @@ Reranker config fields and defaults:
 - `padding`: `nil` (auto; accepts `auto`, `batch_longest`, `fixed`)
 - `execution_providers`: `nil`
 
-Session pool sizing:
-
-- `GTE_SESSION_POOL_CAP`: optional positive integer cap for internal ONNX session pool size.
-- Unset by default; runtime uses available CPU parallelism.
-
 ## Automatic Tuning
 
 `gte` automatically adapts to the hardware — no configuration required.
-
-### ONNX Intra-op Threads
-
-- Auto-detected via `std::thread::available_parallelism()` capped at 4.
-- Prevents oversubscription on high-concurrency workloads.
-- Override with `GTE_INTRA_OP_NUM_THREADS` env var.
-
-### ONNX Inter-op Threads
-
-- Defaults to 1 (text embedding graphs are linear chains with no independent parallel nodes).
-- Override with `GTE_INTER_OP_NUM_THREADS` env var.
 
 ### Execution Providers
 
@@ -183,18 +167,57 @@ export GTE_EXECUTION_PROVIDERS=xnnpack,coreml
 
 Set `cpu` or `none` to skip auto-detect and use ORT's default CPU provider.
 
+### Session Pool
+
+gte uses a **lazy session pool** per worker — it starts with 1 ONNX session
+(same memory as pure Ruby's `OnnxRuntime::Model`) and only creates additional
+sessions when all existing ones are busy, up to a cap:
+
+| Priority | Source | Description |
+|----------|--------|-------------|
+| 1 | `GTE_SESSION_POOL_SIZE` | Explicit cap (e.g. `4`) |
+| 2 | Auto | `min(MAX_THREADS, CPU cores)`, clamped to `[2, 4]` |
+
+Example: Puma with `MAX_THREADS=5` on a 4-core machine → auto cap = 4.
+Sessions beyond the initial one are created on-demand and never freed,
+so peak memory is `cap × model_size` per worker.
+
 ### Session Pre-Warming
 
-ONNX sessions are created lazily per OS thread. In multi-threaded servers (Puma, Sidekiq),
-each thread creates its own session on first use (~100-500ms cold start).
-Pre-warm sessions eagerly at boot:
+The lazy pool means the first concurrent requests pay a one-time cost
+(~100–500 ms) while new sessions are built.  Eliminate this at boot
+with a concurrent warmup matching your thread count:
 
 ```ruby
+# In config/initializers or Puma on_worker_boot:
 model = GTE.config(ENV.fetch("GTE_MODEL_DIR"))
-
-# Pre-warm thread-local sessions for a Puma server with 5 threads:
-GTE.warmup(model, threads: 5)
+GTE.warmup(model, threads: ENV.fetch("MAX_THREADS", "5").to_i)
 ```
+
+The warmup sends `threads` concurrent requests, forcing the pool to
+grow to its auto cap before production traffic arrives.
+
+### Tuning Performance
+
+| Variable | Effect | Default |
+|----------|--------|---------|
+| `GTE_SESSION_POOL_SIZE` | Max ONNX sessions per worker | Auto: `min(MAX_THREADS, CPU)`.clamp(2, 4) |
+| `GTE_INTRA_OP_NUM_THREADS` | Threads ONNX Runtime uses per inference op | `min(CPU cores, 4)` |
+| `GTE_INTER_OP_NUM_THREADS` | Threads for independent graph nodes (irrelevant for text models) | `1` |
+| `GTE_EXECUTION_PROVIDERS` | Comma-separated: `xnnpack`, `coreml`, `cpu` | Auto: `xnnpack` on arm64 |
+| `GTE.warmup(model, threads: N)` | Pre-grow session pool at boot | Not called by default |
+
+**To squeeze more throughput:**
+- Set `GTE_SESSION_POOL_SIZE` to match or slightly exceed your Puma `MAX_THREADS`.
+- On machines with many cores, reduce `GTE_INTRA_OP_NUM_THREADS` to `1` or `2`
+  to avoid CPU oversubscription when multiple sessions run concurrently.
+- Call `GTE.warmup` at boot so the first request is never cold.
+
+**Memory estimation per worker:**
+- Pure Ruby: 1 `OnnxRuntime::Model` ≈ model file size × 3–5
+- gte idle: 1 session ≈ same as pure Ruby
+- gte peak: auto cap sessions ≈ cap × pure Ruby
+- With auto cap=4: **at most 4× pure Ruby memory**, typical in practice is 1–2×
 
 ## Runtime + Result Examples
 
@@ -256,25 +279,29 @@ make bench-docker-validate  # cross-validation checks
 
 | Concurrency | GTE p90 | Pure Ruby p90 | Ratio | GTE RPS | Pure Ruby RPS |
 |------------|---------|---------------|-------|---------|---------------|
-| c=1 | ~12ms | ~120ms | 9-10× | ~95 | ~10 |
-| c=4 | ~39ms | ~503ms | 10-13× | ~228 | ~10 |
-| c=8 | ~146ms | ~613ms | 3-4× | ~224 | ~10 |
-| c=16 | ~430ms | ~611ms | 1-1.5× | ~226 | ~11 |
+| c=1 | ~14ms | ~92ms | 6.4× | ~89 | ~21 |
+| c=2 | ~15ms | ~175ms | 11.4× | ~163 | ~21 |
+| c=4 | ~39ms | ~293ms | 7.4× | ~219 | ~24 |
+| c=8 | ~75ms | ~502ms | 6.7× | ~195 | ~24 |
+| c=16 | ~279ms | ~606ms | 2.2× | ~219 | ~26 |
 
 #### E5 (384-dim, last_hidden_state + mean pool)
 
 | Concurrency | GTE p90 | Pure Ruby p90 | Ratio | GTE RPS | Pure Ruby RPS |
 |------------|---------|---------------|-------|---------|---------------|
-| c=1 | ~7ms | ~120ms | 16-17× | ~160 | ~10 |
-| c=4 | ~12ms | ~430ms | 35-40× | ~477 | ~10 |
-| c=8 | ~64ms | ~530ms | 8-9× | ~503 | ~10 |
-| c=16 | ~205ms | ~534ms | 2-3× | ~509 | ~11 |
+| c=1 | ~8ms | ~73ms | 9.3× | ~152 | ~32 |
+| c=2 | ~8ms | ~95ms | 11.8× | ~291 | ~36 |
+| c=4 | ~22ms | ~163ms | 7.5× | ~432 | ~45 |
+| c=8 | ~51ms | ~291ms | 5.7× | ~451 | ~43 |
+| c=16 | ~133ms | ~1080ms | 8.1× | ~467 | ~47 |
 
-GTE releases the GVL during ONNX inference, enabling true parallelism across Puma threads.
-Pure Ruby is GVL-bound (~10 RPS regardless of concurrency).
+GTE releases the GVL during ONNX inference, enabling true parallelism across
+Puma threads and worker processes. Pure Ruby is serialized
+(~25–45 RPS regardless of concurrency).
 
-The Puma thread pool (min=2, max=5) limits throughput at c=16+.
-GTE's pipelining and GVL release already saturate the available threads at c=4.
+Config: Puma workers=2, threads=min=2/max=5, cpus=4, mem_limit=3g.
+GTE session pool auto cap=4 (min(MAX_THREADS=5, 10 cores) → clamp → 4).
+Docker wrk with random 135-text query set, 15s runs.
 
 ### In-Process Benchmarks
 

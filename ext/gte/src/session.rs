@@ -16,7 +16,7 @@ use std::sync::Arc;
 //
 // Pool max is resolved in order:
 //   1. GTE_SESSION_POOL_SIZE env var (explicit override)
-//   2. Auto: 2 (conservative: 2× pure Ruby memory at peak, no OOM risk)
+//   2. Auto: min(MAX_THREADS, available_parallelism), clamped to [2, 4]
 //
 // At idle the pool holds 1 session (same memory as pure Ruby's single
 // OnnxRuntime::Model).  When all existing sessions are busy and the cap
@@ -29,7 +29,10 @@ fn resolve_pool_cap() -> usize {
     {
         return n;
     }
-    2
+
+    let max_threads = std::env::var("MAX_THREADS").ok().and_then(|v| v.trim().parse::<usize>().ok()).unwrap_or(5);
+    let cpus = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+    max_threads.min(cpus).clamp(2, 4)
 }
 
 pub struct SessionPool {
