@@ -49,8 +49,6 @@ impl Embedder {
             with_attention_mask: true,
             optimization_level,
             execution_providers: overrides.execution_providers.map(str::to_string),
-            lowercase_input: false,
-            max_input_chars: None,
         };
         let session = build_session(&model_path, &probe_config)?;
 
@@ -72,11 +70,9 @@ impl Embedder {
             with_attention_mask,
             optimization_level,
             execution_providers: overrides.execution_providers.map(str::to_string),
-            lowercase_input: false,
-            max_input_chars: None,
         };
 
-        let normalize = output_name_suggests_normalized(&config.output_tensor);
+        let normalize = should_normalize_output(&config.output_tensor);
 
         let tokenizer = Tokenizer::new(
             &tokenizer_path,
@@ -106,11 +102,7 @@ impl Embedder {
     }
 }
 
-pub fn normalize_l2(embeddings: Array2<f32>) -> Array2<f32> {
-    normalize_l2_rows(embeddings)
-}
-
-pub fn output_name_suggests_normalized(name: &str) -> bool {
+fn should_normalize_output(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
     let base = lower.rsplit('/').next().unwrap_or(&lower);
     !(base.contains("normalized") || base.contains("l2_norm") || base.contains("l2norm"))
@@ -118,22 +110,22 @@ pub fn output_name_suggests_normalized(name: &str) -> bool {
 
 #[cfg(test)]
 mod normalize_tests {
-    use super::output_name_suggests_normalized;
+    use super::should_normalize_output;
 
     #[test]
     fn detects_normalized_output_names() {
-        assert!(!output_name_suggests_normalized("pooled_sentence_embeddings_debiased_normalized"));
-        assert!(!output_name_suggests_normalized("embeddings/L2_Normalized"));
-        assert!(!output_name_suggests_normalized("l2norm_output"));
-        assert!(!output_name_suggests_normalized("norm/l2_norm_tensor"));
+        assert!(!should_normalize_output("pooled_sentence_embeddings_debiased_normalized"));
+        assert!(!should_normalize_output("embeddings/L2_Normalized"));
+        assert!(!should_normalize_output("l2norm_output"));
+        assert!(!should_normalize_output("norm/l2_norm_tensor"));
     }
 
     #[test]
     fn does_not_detect_raw_output_names() {
-        assert!(output_name_suggests_normalized("last_hidden_state"));
-        assert!(output_name_suggests_normalized("text_embeds"));
-        assert!(output_name_suggests_normalized("pooler_output"));
-        assert!(output_name_suggests_normalized("sentence_embedding"));
-        assert!(output_name_suggests_normalized("logits"));
+        assert!(should_normalize_output("last_hidden_state"));
+        assert!(should_normalize_output("text_embeds"));
+        assert!(should_normalize_output("pooler_output"));
+        assert!(should_normalize_output("sentence_embedding"));
+        assert!(should_normalize_output("logits"));
     }
 }

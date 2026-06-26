@@ -12,14 +12,14 @@ RSpec.describe 'GTE::Reranker' do
       expect(GTE::Reranker.instance_methods(false)).to include(:score)
     end
 
-    it 'responds to convenience rerank API' do
-      expect(GTE::Reranker.instance_methods(false)).to include(:rerank)
-    end
-
     it 'accepts execution_providers in config without argument errors' do
       expect do
         GTE::Reranker.new('/nonexistent/dir') { |config| config.with(execution_providers: 'cpu') }
       end.to raise_error(GTE::Error)
+    end
+
+    it 'rejects unknown keyword pool_size' do
+      expect { GTE::Reranker.new('/nonexistent', pool_size: 4) }.to raise_error(ArgumentError)
     end
   end
 
@@ -41,13 +41,5 @@ RSpec.describe 'GTE::Reranker' do
       scores.each { |score| expect(score).to be_a(Float) }
     end
 
-    it 'supports class-level config and ranked output' do
-      reranker = GTE::Reranker.new(GTE_RERANK_DIR) { |config| config.with(sigmoid: true) }
-      ranked = reranker.rerank(query: query, candidates: candidates)
-
-      expect(ranked.length).to eq(candidates.length)
-      expect(ranked.first).to include(:index, :score, :text)
-      expect(ranked.map { |row| row[:score] }).to eq(ranked.map { |row| row[:score] }.sort.reverse)
-    end
   end
 end

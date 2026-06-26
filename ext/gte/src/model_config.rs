@@ -23,8 +23,6 @@ pub struct ModelConfig {
     pub with_attention_mask: bool,
     pub optimization_level: u8,
     pub execution_providers: Option<String>,
-    pub lowercase_input: bool,
-    pub max_input_chars: Option<usize>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -34,6 +32,4 @@ pub struct ModelLoadOverrides<'a> {
     pub max_length: Option<usize>,
     pub padding: Option<&'a str>,
     pub execution_providers: Option<&'a str>,
-    pub lowercase_input: Option<bool>,
-    pub max_input_chars: Option<usize>,
 }

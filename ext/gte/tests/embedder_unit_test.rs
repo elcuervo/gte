@@ -1,4 +1,4 @@
-use gte::embedder::normalize_l2;
+use gte::postprocess::normalize_l2;
 use ndarray::array;
 
 #[test]

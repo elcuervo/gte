@@ -74,15 +74,6 @@ namespace :bench do
     )
   end
 
-  desc 'Sweep execution-provider settings for Puma-like benchmark'
-  task :matrix_sweep do
-    run_in_nix(
-      'bundle', 'exec', 'ruby', 'bench/puma_matrix_sweep.rb',
-      '--iterations', '80',
-      '--runs', '3'
-    )
-  end
-
   desc 'Run memory probe for single-instance vs duplicate-instance behavior'
   task :memory_probe do
     run_in_nix(

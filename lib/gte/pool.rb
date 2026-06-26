@@ -1,18 +1,18 @@
 # frozen_string_literal: true
 
-require 'etc'
-
 module GTE
   class Pool
-    attr_reader :model
-
     def initialize(model_dir, pool_size: nil)
       config = Embedder.default_config(model_dir)
       config = yield(config) if block_given?
 
+      prev_size = pool_size ? ENV['GTE_SESSION_POOL_SIZE'] : nil
+      ENV['GTE_SESSION_POOL_SIZE'] = pool_size.to_s if pool_size
       @model = Model.new(config)
+    ensure
+      ENV['GTE_SESSION_POOL_SIZE'] = prev_size if pool_size
       @pool_size = pool_size || resolve_pool_size
-      warmup
+      warmup if @model
     end
 
     def embed(texts)
@@ -24,7 +24,7 @@ module GTE
     end
 
     def warmup
-      @pool_size.times { @model.embed('warmup') }
+      @pool_size.times.map { Thread.new { @model.embed('warmup') } }.each(&:join)
     end
 
     private

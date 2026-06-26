@@ -10,7 +10,7 @@ use parking_lot::Mutex;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-pub fn resolve_pool_size() -> usize {
+pub(crate) fn resolve_pool_size() -> usize {
     if let Some(n) =
         std::env::var("GTE_SESSION_POOL_SIZE").ok().and_then(|v| v.trim().parse::<usize>().ok()).filter(|&n| n > 0)
     {
@@ -44,7 +44,11 @@ impl SessionPool {
     where
         F: FnOnce(&mut Session) -> Result<R>,
     {
-        let idx = self.next_idx.fetch_add(1, Ordering::Relaxed) % self.sessions.len();
+        let idx = if self.sessions.len() == 1 {
+            0
+        } else {
+            self.next_idx.fetch_add(1, Ordering::Relaxed) % self.sessions.len()
+        };
         let mut session = self.sessions[idx].lock();
         f(&mut session)
     }
@@ -54,7 +58,7 @@ impl SessionPool {
     }
 }
 
-pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Result<Session> {
+pub(crate) fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Result<Session> {
     fn ort_err(e: impl std::fmt::Display) -> GteError {
         GteError::Ort(e.to_string())
     }
@@ -123,7 +127,7 @@ fn preferred_execution_providers(order_override: Option<&str>) -> Vec<ExecutionP
     providers
 }
 
-pub fn run_session(session: &mut Session, tokenized: &Tokenized, config: &ModelConfig) -> Result<Array2<f32>> {
+pub(crate) fn run_session(session: &mut Session, tokenized: &Tokenized, config: &ModelConfig) -> Result<Array2<f32>> {
     let input_tensors = InputTensors::from_tokenized(tokenized, config.with_attention_mask)?;
     let run_opts = RunOptions::new()
         .map_err(|e| GteError::Ort(e.to_string()))?
@@ -180,8 +184,6 @@ mod tests {
             with_attention_mask: true,
             optimization_level: 3,
             execution_providers: None,
-            lowercase_input: false,
-            max_input_chars: None,
         }
     }
 

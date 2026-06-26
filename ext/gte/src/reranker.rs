@@ -54,8 +54,6 @@ impl Reranker {
             with_attention_mask: true,
             optimization_level,
             execution_providers: overrides.execution_providers.map(str::to_string),
-            lowercase_input: false,
-            max_input_chars: None,
         };
         let session = build_session(&model_path, &probe_config)?;
 
@@ -83,8 +81,6 @@ impl Reranker {
             with_attention_mask: config.with_attention_mask,
             optimization_level,
             execution_providers: None,
-            lowercase_input: false,
-            max_input_chars: None,
         };
         let pool = SessionPool::new(&model_path, &model_config, resolve_pool_size())?;
         Ok(Self { tokenizer, pool, config })

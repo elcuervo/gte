@@ -17,13 +17,6 @@ module GTE
       @embedder.embed(Array(texts))
     end
 
-    def [](input)
-      case input
-      when String then embed(input).row(0)
-      when Array then embed(input)
-      end
-    end
-
     def embed_binary(text)
       embed(text).row_binary_f32(0)
     end

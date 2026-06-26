@@ -9,38 +9,32 @@ Inspired by https://github.com/fbilhaut/gte-rs
 ```ruby
 require "gte"
 
-model = GTE.config(ENV.fetch("GTE_MODEL_DIR"))
+model = GTE::Pool.new(ENV.fetch("GTE_MODEL_DIR"))
 
 # String input => GTE::Tensor (1 row)
 tensor = model.embed("query: hello world")
 vector = tensor.row(0)
-
-# [] with string => Array<Float> (single vector)
-single = model["query: nearest coffee shop"]
-
-# [] with array => GTE::Tensor (batch)
-batch = model[["query: hello", "query: world"]]
 ```
 
-## Embedding Config (`GTE.config`)
+## Embedding Config (`GTE::Pool`)
 
-`GTE.config(model_dir)` builds (and caches) a `GTE::Model`.
+`GTE::Pool.new(model_dir)` creates a new pool with one ONNX session by default.
 
 ```ruby
-default_model = GTE.config(ENV.fetch("GTE_MODEL_DIR"))
+default = GTE::Pool.new(ENV.fetch("GTE_MODEL_DIR"))
+default.embed("query: hello world")
 
-raw_model = GTE.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
-  config.with(normalize: false)
-end
-
-custom = GTE.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
+# With config overrides
+configurable = GTE::Pool.new(ENV.fetch("GTE_MODEL_DIR")) do |config|
   config.with(
     output_tensor: "last_hidden_state",
-    max_length: 256,
-    padding: "batch_longest",
-    optimization_level: 3
+    max_length: 128,
+    execution_providers: "xnnpack"
   )
 end
+
+# Explicit pool size (each session costs ~120MB RSS)
+large = GTE::Pool.new(ENV.fetch("GTE_MODEL_DIR"), pool_size: 4)
 ```
 
 Config fields and defaults:
@@ -327,3 +321,35 @@ make bench-record
 
 - Enforces the goal metric (`response_time_p95`) across every enabled competitor.
 - Does not require current-version coverage in `RUNS.md` unless explicitly enabled.
+
+## Fork Safety
+
+GTE uses ONNX Runtime sessions which maintain internal thread pools for parallelism
+(`GTE_INTRA_OP_NUM_THREADS`, default `min(cpus, 4)`). These thread pools are
+per-session and may not survive `fork()` on some platforms.
+
+**With Puma's `preload_app!`:**
+
+Sessions built before `fork()` share memory via COW, but the internal ORT threads
+created during `Session::builder().commit_from_file()` do not exist in the child
+process. When a forked worker calls `session.run()`, ORT must recreate these
+threads, which adds latency to the first inference call.
+
+**Recommendations:**
+
+1. **Set `GTE_INTRA_OP_NUM_THREADS=1`** in forked environments to avoid creating
+   per-session thread pools entirely. ORT will run inference single-threaded,
+   which is acceptable when multiple sessions handle concurrency.
+2. **Build sessions in `on_worker_boot`** instead of before fork to guarantee
+   fresh thread pools in each worker. This adds ~200ms to worker startup per
+   model but ensures consistent inference latency:
+
+   ```ruby
+   # config/puma.rb
+   on_worker_boot do
+     $gte_pool = GTE::Pool.new(ENV.fetch("GTE_MODEL_DIR"))
+   end
+   ```
+
+3. **If using `preload_app!`**, call `GTE::Pool.new` in `before_fork` and set
+   `GTE_INTRA_OP_NUM_THREADS=1` to avoid thread pool issues in child processes.

@@ -34,7 +34,6 @@ This repository is a Ruby gem with a Rust extension for text embeddings.
   - `GTE_MODEL_DIR`
   - `GTE_CLIP_DIR`
   - `GTE_SIGLIP2_DIR`
-  - Optional Puma tuning target: `GTE_PUMA_CONCURRENCY` (default `16`).
 
 ## Working Rules
 
@@ -49,6 +48,15 @@ This repository is a Ruby gem with a Rust extension for text embeddings.
 - Default execution provider is **CPU fallback** via ONNX Runtime default provider (`GTE_EXECUTION_PROVIDERS=cpu` or unset).
 - Do NOT add CoreML as a default provider. CoreML adds significant overhead for text embedding models on Apple Silicon (observed 3–6× latency increase for CLIP, 2× for Siglip2) despite appearing to be a sensible acceleration backend.
 - Users who want explicit provider registration can opt in via `GTE_EXECUTION_PROVIDERS=xnnpack` or `GTE_EXECUTION_PROVIDERS=xnnpack,coreml`.
+
+## Fork Safety
+
+When working on session lifecycle or pool construction, consider Puma
+`preload_app!` behavior. ONNX Runtime internal thread pools (created by
+`GTE_INTRA_OP_NUM_THREADS`) do not survive `fork()`. The pool is built at
+`GTE::Pool.new` time, so if called before fork, child workers inherit sessions
+with broken thread pools. Use `GTE_INTRA_OP_NUM_THREADS=1` or build pools
+in `on_worker_boot` for forked environments.
 
 ## Useful Commands
 

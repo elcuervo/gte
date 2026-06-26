@@ -8,7 +8,6 @@ gem 'rake'
 gem 'rake-compiler'
 gem 'rb_sys'
 gem 'rspec'
-gem 'rspec-benchmark'
 gem 'rubocop', require: false
 
 group :bench do

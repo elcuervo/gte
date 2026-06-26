@@ -18,6 +18,7 @@ use magnus::{prelude::*, Error, Ruby};
 #[magnus::init]
 fn init(ruby: &Ruby) -> Result<(), Error> {
     let module = ruby.define_module("GTE")?;
+    #[allow(unused_results)]
     module.define_error("Error", ruby.exception_standard_error())?;
     ruby_embedder::register(ruby)?;
     std::panic::set_hook(Box::new(|info| {

@@ -8,8 +8,6 @@ use crate::error::GteError;
 use crate::model_config::ModelLoadOverrides;
 use crate::reranker::Reranker;
 use magnus::{function, method, prelude::*, wrap, Error, RArray, Ruby};
-use magnus::method::RubyFunction7;
-use magnus::method::RubyFunction8;
 use std::os::raw::c_void;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;

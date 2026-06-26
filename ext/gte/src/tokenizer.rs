@@ -32,8 +32,8 @@ impl Tokenizer {
                 strategy: resolve_padding_strategy(padding_mode, max_length, fixed_padding_length),
                 ..Default::default()
             };
-            tokenizer.with_truncation(Some(truncation)).map_err(|e| GteError::Tokenizer(e.to_string()))?;
-            tokenizer.with_padding(Some(padding));
+            let _ = tokenizer.with_truncation(Some(truncation)).map_err(|e| GteError::Tokenizer(e.to_string()))?;
+            let _ = tokenizer.with_padding(Some(padding));
 
             Ok(Self { tokenizer, with_type_ids })
         }

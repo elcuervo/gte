@@ -5,7 +5,7 @@ module GTE
     class << self
       alias_method :native_new, :new
 
-      def new(model_dir, pool_size: nil, &block)
+      def new(model_dir, &block)
         cfg = default_config(model_dir)
         cfg = block.call(cfg) if block
         native_new(
@@ -36,14 +36,5 @@ module GTE
       end
     end
 
-    def rerank(query:, candidates:)
-      rows = Array(candidates).map(&:to_s)
-      scores = score(query.to_s, rows)
-
-      rows
-        .each_with_index
-        .map { |text, idx| { index: idx, score: scores[idx], text: text } }
-        .sort_by { |row| -row[:score] }
-    end
   end
 end
