@@ -610,7 +610,7 @@ module Bench
       end
 
       def build(model_dir, profile_override = profile)
-        model = GTE::Pool.new(model_dir) do |config|
+        model = GTE.config(model_dir) do |config|
           config.with(
             execution_providers: profile_override.fetch('execution_providers', 'cpu')
           )

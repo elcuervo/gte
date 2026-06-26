@@ -770,3 +770,271 @@ Performance run ledger for Puma-like single-request concurrency benchmarks.
   }
 }
 ```
+
+## 2026-06-26T16:27:23Z | v0.0.16 | 099fd14
+- Goal (response-time p95 ratio across enabled competitors): PASS
+- Goal (service-time p95 ratio across enabled competitors): PASS
+- Regression vs previous run (GTE response-time p95 <= +15.0%): PASS
+
+```json
+{
+  "kind": "puma_compare_run",
+  "recorded_at": "2026-06-26T16:27:39Z",
+  "generated_at": "2026-06-26T16:27:23Z",
+  "gem_version": "0.0.16",
+  "git_sha": "099fd14",
+  "platform": "arm64-darwin25",
+  "ruby_version": "3.4.8",
+  "mode": "puma_like_in_process",
+  "concurrency": 16,
+  "iterations": 20,
+  "run_samples": 1,
+  "thresholds": {
+    "goal_metric": "response_time_p95_and_service_time_p95",
+    "sample_aggregation": "median",
+    "min_p95_ratio": 1.0,
+    "min_service_ratio": 0.0,
+    "regression_tolerance": 0.15
+  },
+  "status": {
+    "goal_response_p95_ratio_all_models": true,
+    "goal_service_p95_ratio_all_models": true,
+    "regression_vs_previous": true,
+    "regression_baseline": "previous_run"
+  },
+  "metrics": {
+    "e5": {
+      "gte_response_p95_ms": 22.44199998676777,
+      "gte_response_median_ms": 21.972999908030033,
+      "gte_service_p95_ms": 16.604000004008412,
+      "gte_throughput_rps": 889.2050499633267,
+      "minimum_ratio_p95": 4.858345958739779,
+      "minimum_service_ratio_p95": 1.008491931213661,
+      "competitors": {
+        "pure_ruby": {
+          "metric": "response_time.p95_ms",
+          "gte_value": 22.44199998676777,
+          "competitor_value": 109.03099994175136,
+          "ratio_over_gte": 4.858345958739779,
+          "pass": true
+        }
+      },
+      "service_competitors": {
+        "pure_ruby": {
+          "metric": "service_time.p95_ms",
+          "gte_value": 16.604000004008412,
+          "competitor_value": 16.74500002991408,
+          "ratio_over_gte": 1.008491931213661,
+          "pass": true
+        }
+      }
+    },
+    "clip": {
+      "gte_response_p95_ms": 18.99000001139939,
+      "gte_response_median_ms": 13.432999956421554,
+      "gte_service_p95_ms": 11.236000107601285,
+      "gte_throughput_rps": 1051.3588797045716,
+      "minimum_ratio_p95": 3.471300680619512,
+      "minimum_service_ratio_p95": 0.5175329285127666,
+      "competitors": {
+        "pure_ruby": {
+          "metric": "response_time.p95_ms",
+          "gte_value": 18.99000001139939,
+          "competitor_value": 65.91999996453524,
+          "ratio_over_gte": 3.471300680619512,
+          "pass": true
+        }
+      },
+      "service_competitors": {
+        "pure_ruby": {
+          "metric": "service_time.p95_ms",
+          "gte_value": 11.236000107601285,
+          "competitor_value": 5.815000040456653,
+          "ratio_over_gte": 0.5175329285127666,
+          "pass": true
+        }
+      }
+    },
+    "siglip2": {
+      "gte_response_p95_ms": 40.78599996864796,
+      "gte_response_median_ms": 25.76799993403256,
+      "gte_service_p95_ms": 20.915000000968575,
+      "gte_throughput_rps": 489.8718979224654,
+      "minimum_ratio_p95": 2.448143972820342,
+      "minimum_service_ratio_p95": 0.3161367466079336,
+      "competitors": {
+        "pure_ruby": {
+          "metric": "response_time.p95_ms",
+          "gte_value": 40.78599996864796,
+          "competitor_value": 99.84999999869615,
+          "ratio_over_gte": 2.448143972820342,
+          "pass": true
+        }
+      },
+      "service_competitors": {
+        "pure_ruby": {
+          "metric": "service_time.p95_ms",
+          "gte_value": 20.915000000968575,
+          "competitor_value": 6.612000055611134,
+          "ratio_over_gte": 0.3161367466079336,
+          "pass": true
+        }
+      }
+    }
+  },
+  "regressions": {
+    "e5": {
+      "previous_gte_response_p95_ms": 24.10699997562915,
+      "current_gte_response_p95_ms": 22.44199998676777,
+      "allowed_gte_response_p95_ms": 27.72304997197352,
+      "regressed": false
+    },
+    "clip": {
+      "previous_gte_response_p95_ms": 18.399000051431358,
+      "current_gte_response_p95_ms": 18.99000001139939,
+      "allowed_gte_response_p95_ms": 21.15885005914606,
+      "regressed": false
+    },
+    "siglip2": {
+      "previous_gte_response_p95_ms": 49.49999996460974,
+      "current_gte_response_p95_ms": 40.78599996864796,
+      "allowed_gte_response_p95_ms": 56.924999959301196,
+      "regressed": false
+    }
+  }
+}
+```
+
+## 2026-06-26T17:02:56Z | v0.0.16 | 099fd14
+- Goal (response-time p95 ratio across enabled competitors): PASS
+- Goal (service-time p95 ratio across enabled competitors): PASS
+- Regression vs previous run (GTE response-time p95 <= +15.0%): FAIL
+
+```json
+{
+  "kind": "puma_compare_run",
+  "recorded_at": "2026-06-26T17:03:11Z",
+  "generated_at": "2026-06-26T17:02:56Z",
+  "gem_version": "0.0.16",
+  "git_sha": "099fd14",
+  "platform": "arm64-darwin25",
+  "ruby_version": "3.4.8",
+  "mode": "puma_like_in_process",
+  "concurrency": 16,
+  "iterations": 20,
+  "run_samples": 1,
+  "thresholds": {
+    "goal_metric": "response_time_p95_and_service_time_p95",
+    "sample_aggregation": "median",
+    "min_p95_ratio": 1.0,
+    "min_service_ratio": 0.0,
+    "regression_tolerance": 0.15
+  },
+  "status": {
+    "goal_response_p95_ratio_all_models": true,
+    "goal_service_p95_ratio_all_models": true,
+    "regression_vs_previous": false,
+    "regression_baseline": "previous_run"
+  },
+  "metrics": {
+    "e5": {
+      "gte_response_p95_ms": 22.39300007931888,
+      "gte_response_median_ms": 14.18200007174164,
+      "gte_service_p95_ms": 16.500999918207526,
+      "gte_throughput_rps": 891.901535418108,
+      "minimum_ratio_p95": 2.6706113401946197,
+      "minimum_service_ratio_p95": 0.24453063516372048,
+      "competitors": {
+        "pure_ruby": {
+          "metric": "response_time.p95_ms",
+          "gte_value": 22.39300007931888,
+          "competitor_value": 59.80299995280802,
+          "ratio_over_gte": 2.6706113401946197,
+          "pass": true
+        }
+      },
+      "service_competitors": {
+        "pure_ruby": {
+          "metric": "service_time.p95_ms",
+          "gte_value": 16.500999918207526,
+          "competitor_value": 4.034999990835786,
+          "ratio_over_gte": 0.24453063516372048,
+          "pass": true
+        }
+      }
+    },
+    "clip": {
+      "gte_response_p95_ms": 24.46999994572252,
+      "gte_response_median_ms": 14.188000001013279,
+      "gte_service_p95_ms": 18.306000041775405,
+      "gte_throughput_rps": 815.760490364487,
+      "minimum_ratio_p95": 1.957866778235077,
+      "minimum_service_ratio_p95": 0.14634546162093182,
+      "competitors": {
+        "pure_ruby": {
+          "metric": "response_time.p95_ms",
+          "gte_value": 24.46999994572252,
+          "competitor_value": 47.90899995714426,
+          "ratio_over_gte": 1.957866778235077,
+          "pass": true
+        }
+      },
+      "service_competitors": {
+        "pure_ruby": {
+          "metric": "service_time.p95_ms",
+          "gte_value": 18.306000041775405,
+          "competitor_value": 2.6790000265464187,
+          "ratio_over_gte": 0.14634546162093182,
+          "pass": true
+        }
+      }
+    },
+    "siglip2": {
+      "gte_response_p95_ms": 44.90800003986806,
+      "gte_response_median_ms": 26.532000047154725,
+      "gte_service_p95_ms": 35.50700005143881,
+      "gte_throughput_rps": 444.91902448352613,
+      "minimum_ratio_p95": 2.3963436334442885,
+      "minimum_service_ratio_p95": 0.19838341619464697,
+      "competitors": {
+        "pure_ruby": {
+          "metric": "response_time.p95_ms",
+          "gte_value": 44.90800003986806,
+          "competitor_value": 107.61499998625368,
+          "ratio_over_gte": 2.3963436334442885,
+          "pass": true
+        }
+      },
+      "service_competitors": {
+        "pure_ruby": {
+          "metric": "service_time.p95_ms",
+          "gte_value": 35.50700005143881,
+          "competitor_value": 7.0439999690279365,
+          "ratio_over_gte": 0.19838341619464697,
+          "pass": true
+        }
+      }
+    }
+  },
+  "regressions": {
+    "e5": {
+      "previous_gte_response_p95_ms": 22.44199998676777,
+      "current_gte_response_p95_ms": 22.39300007931888,
+      "allowed_gte_response_p95_ms": 25.80829998478293,
+      "regressed": false
+    },
+    "clip": {
+      "previous_gte_response_p95_ms": 18.99000001139939,
+      "current_gte_response_p95_ms": 24.46999994572252,
+      "allowed_gte_response_p95_ms": 21.838500013109297,
+      "regressed": true
+    },
+    "siglip2": {
+      "previous_gte_response_p95_ms": 40.78599996864796,
+      "current_gte_response_p95_ms": 44.90800003986806,
+      "allowed_gte_response_p95_ms": 46.90389996394514,
+      "regressed": false
+    }
+  }
+}
+```

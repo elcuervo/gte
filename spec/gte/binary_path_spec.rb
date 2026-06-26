@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 RSpec.describe 'Binary tensor path', if: GTE_E5_AVAILABLE do
-  let(:pool) { GTE::Pool.new(GTE_E5_DIR) }
+  let(:pool) { GTE.config(GTE_E5_DIR) }
   let(:text) { 'query: cat' }
 
   it 'returns native f32 bytes matching the Array path' do

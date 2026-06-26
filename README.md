@@ -9,23 +9,26 @@ Inspired by https://github.com/fbilhaut/gte-rs
 ```ruby
 require "gte"
 
-model = GTE::Pool.new(ENV.fetch("GTE_MODEL_DIR"))
+model = GTE.config(ENV.fetch("GTE_MODEL_DIR"))
 
 # String input => GTE::Tensor (1 row)
 tensor = model.embed("query: hello world")
 vector = tensor.row(0)
+
+# Binary f32 bytes (zero-copy to Numo/NumPy)
+bytes = model.embed_binary("query: hello world")
 ```
 
 ## Embedding Config (`GTE::Pool`)
 
-`GTE::Pool.new(model_dir)` creates a new pool with one ONNX session by default.
+`GTE.config(model_dir)` creates a new pool with one ONNX session by default.
 
 ```ruby
-default = GTE::Pool.new(ENV.fetch("GTE_MODEL_DIR"))
+default = GTE.config(ENV.fetch("GTE_MODEL_DIR"))
 default.embed("query: hello world")
 
 # With config overrides
-configurable = GTE::Pool.new(ENV.fetch("GTE_MODEL_DIR")) do |config|
+configurable = GTE.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
   config.with(
     output_tensor: "last_hidden_state",
     max_length: 128,
@@ -34,7 +37,7 @@ configurable = GTE::Pool.new(ENV.fetch("GTE_MODEL_DIR")) do |config|
 end
 
 # Explicit pool size (each session costs ~120MB RSS)
-large = GTE::Pool.new(ENV.fetch("GTE_MODEL_DIR"), pool_size: 4)
+large = GTE.config(ENV.fetch("GTE_MODEL_DIR"), pool_size: 4)
 ```
 
 Config fields and defaults:
@@ -42,18 +45,10 @@ Config fields and defaults:
 - `model_dir`: absolute path to model directory
 - `optimization_level`: `3`
 - `model_name`: `nil`
-- `normalize`: `true` (L2 normalization at Ruby-facing API)
 - `output_tensor`: `nil` (auto-select output tensor)
 - `max_length`: `nil` (uses tokenizer/model defaults)
 - `padding`: `nil` (auto; accepts `auto`, `batch_longest`, `fixed`)
 - `execution_providers`: `nil` (falls back to `GTE_EXECUTION_PROVIDERS` / CPU default)
-
-Notes:
-
-- Return a `Config::Text` from the block (for example, `config.with(...)`).
-- Model instances are cached by full config key; different config values create different cached instances.
-- `GTE.warmup(model, threads:)` pre-grows the lazy session pool to its auto cap.
-  Useful at boot in multi-threaded servers (Puma, Sidekiq) to avoid ~100-500ms cold-start latency.
 
 Common model presets:
 
@@ -85,27 +80,28 @@ clip = GTE.config(ENV.fetch("GTE_CLIP_DIR")) do |config|
 end
 ```
 
-Picking a specific layer:
+Output selection:
 
 - Use `output_tensor:` to request a named model output.
 - `last_hidden_state` gives token-level hidden states and is mean-pooled by `gte` when the tensor is rank 3.
-- `pooler_output`, `sentence_embedding`, and similar 2D tensors are returned directly and then L2-normalized by default.
+- `pooler_output`, `sentence_embedding`, and similar 2D tensors are returned directly and L2-normalized.
+- If the output tensor name suggests already-normalized output (e.g. `l2_norm`, `normalized`), normalization is skipped.
 - If the requested tensor is not present in the model, `gte` raises an error instead of silently falling back.
 
-Low-level embedder setup (without model cache):
+Low-level embedder setup (without Pool convenience):
 
 ```ruby
-embedder = GTE::Embedder.config(ENV.fetch("GTE_MODEL_DIR")) do |config|
-  config.with(execution_providers: "cpu")
-end
+embedder = GTE::Embedder.from_config(
+  GTE::Embedder.default_config(ENV.fetch("GTE_MODEL_DIR"))
+)
 ```
 
 ## Reranker
 
-Use `GTE::Reranker.config(model_dir)` for cross-encoder reranking.
+Use `GTE::Reranker.new(model_dir)` for cross-encoder reranking.
 
 ```ruby
-reranker = GTE::Reranker.config(ENV.fetch("GTE_RERANK_DIR")) do |config|
+reranker = GTE::Reranker.new(ENV.fetch("GTE_RERANK_DIR")) do |config|
   config.with(sigmoid: true)
 end
 
@@ -118,13 +114,6 @@ candidates = [
 # Raw scores aligned with input order
 scores = reranker.score(query, candidates)
 # => [0.93, 0.07]
-
-# Ranked output sorted by score desc
-ranked = reranker.rerank(query: query, candidates: candidates)
-# => [
-#      { index: 0, score: 0.93, text: "Backpropagation and gradient descent are core techniques." },
-#      { index: 1, score: 0.07, text: "This recipe uses flour and eggs." }
-#    ]
 ```
 
 Reranker config fields and defaults:
@@ -163,65 +152,59 @@ Set `cpu` or `none` to skip auto-detect and use ORT's default CPU provider.
 
 ### Session Pool
 
-gte uses a **lazy session pool** per worker — it starts with 1 ONNX session
-(same memory as pure Ruby's `OnnxRuntime::Model`) and only creates additional
-sessions when all existing ones are busy, up to a cap:
+gte uses a **pre-allocated session pool** per worker — it creates N sessions at
+construction time, where N is determined by:
 
 | Priority | Source | Description |
 |----------|--------|-------------|
-| 1 | `GTE_SESSION_POOL_SIZE` | Explicit cap (e.g. `4`) |
-| 2 | Auto | `min(MAX_THREADS, CPU cores)`, clamped to `[2, 4]` |
+| 1 | `GTE_SESSION_POOL_SIZE` | Explicit size (e.g. `4`) |
+| 2 | `PUMA_MAX_THREADS` | Match Puma concurrency (capped at 8) |
+| 3 | Default | `1` (single session, matching the unsplash-api singleton pattern) |
 
-Example: Puma with `MAX_THREADS=5` on a 4-core machine → auto cap = 4.
-Sessions beyond the initial one are created on-demand and never freed,
-so peak memory is `cap × model_size` per worker.
+The pool is fixed-size: sessions are never created or destroyed after construction.
+When all sessions are busy, the calling thread blocks on `parking_lot::Mutex`
+until a session is released. This avoids the allocation and memory overhead of
+lazy-growing pools while matching the concurrency needs of application threads.
 
 ### Session Pre-Warming
 
-The lazy pool means the first concurrent requests pay a one-time cost
-(~100–500 ms) while new sessions are built.  Eliminate this at boot
-with a concurrent warmup matching your thread count:
+The pool is pre-warmed automatically in `GTE.config` — one inference per
+session is run on construction so the first production request never hits a cold
+cache. No manual warmup step needed.
+
+To re-warm (useful after fork in Puma's `on_worker_boot`):
 
 ```ruby
-# In config/initializers or Puma on_worker_boot:
-model = GTE.config(ENV.fetch("GTE_MODEL_DIR"))
-GTE.warmup(model, threads: ENV.fetch("MAX_THREADS", "5").to_i)
+pool.warmup
 ```
-
-The warmup sends `threads` concurrent requests, forcing the pool to
-grow to its auto cap before production traffic arrives.
 
 ### Tuning Performance
 
 | Variable | Effect | Default |
 |----------|--------|---------|
-| `GTE_SESSION_POOL_SIZE` | Max ONNX sessions per worker | Auto: `min(MAX_THREADS, CPU)`.clamp(2, 4) |
+| `GTE_SESSION_POOL_SIZE` | Max ONNX sessions per worker | `1` (or `PUMA_MAX_THREADS`) |
 | `GTE_INTRA_OP_NUM_THREADS` | Threads ONNX Runtime uses per inference op | `min(CPU cores, 4)` |
 | `GTE_INTER_OP_NUM_THREADS` | Threads for independent graph nodes (irrelevant for text models) | `1` |
 | `GTE_EXECUTION_PROVIDERS` | Comma-separated: `xnnpack`, `coreml`, `cpu` | Auto: `xnnpack` on arm64 |
-| `GTE.warmup(model, threads: N)` | Pre-grow session pool at boot | Not called by default |
 
 **To squeeze more throughput:**
 - Set `GTE_SESSION_POOL_SIZE` to match or slightly exceed your Puma `MAX_THREADS`.
 - On machines with many cores, reduce `GTE_INTRA_OP_NUM_THREADS` to `1` or `2`
   to avoid CPU oversubscription when multiple sessions run concurrently.
-- Call `GTE.warmup` at boot so the first request is never cold.
 
 **Memory estimation per worker:**
-- Pure Ruby: 1 `OnnxRuntime::Model` ≈ model file size × 3–5
-- gte idle: 1 session ≈ same as pure Ruby
-- gte peak: auto cap sessions ≈ cap × pure Ruby
-- With auto cap=4: **at most 4× pure Ruby memory**, typical in practice is 1–2×
+- Pool size N (default 1): **N × model file size × 3–5**
+- Each additional session adds ~120MB RSS on arm64 with XNNPACK.
 
-## Runtime + Result Examples
+## Runtime
 
 Process-local reuse (recommended for Puma/web servers):
 
 ```ruby
-EMBEDDER = GTE.config(ENV.fetch("GTE_MODEL_DIR"))
+$gte = GTE.config(ENV.fetch("GTE_MODEL_DIR"))
 
 def embed_query(text)
-  EMBEDDER[text] # Array<Float>
+  $gte.embed(text).row(0) # Array<Float>
 end
 ```
 
@@ -235,7 +218,6 @@ A model directory must include `tokenizer.json` and one ONNX model, resolved in 
 4. `model.onnx`
 
 Input policy is text-only. Graphs requiring unsupported multimodal inputs (such as `pixel_values`) are intentionally rejected.
-
 
 ## Development
 
@@ -294,21 +276,16 @@ Puma threads and worker processes. Pure Ruby is serialized
 (~25–45 RPS regardless of concurrency).
 
 Config: Puma workers=2, threads=min=2/max=5, cpus=4, mem_limit=3g.
-GTE session pool auto cap=4 (min(MAX_THREADS=5, 10 cores) → clamp → 4).
 Docker wrk with random 135-text query set, 15s runs.
 
 ### In-Process Benchmarks
 
 ```bash
 make bench
-nix develop -c bundle exec rake bench:pure_compare
-nix develop -c bundle exec rake bench:matrix_sweep
 nix develop -c bundle exec ruby bench/memory_probe.rb --compare-pure
 ```
 
 - `make bench`: Puma-like single-request comparison at concurrency `16`
-- `rake bench:pure_compare`: batch amortization comparison
-- `rake bench:matrix_sweep`: GTE provider sweep using the shared result schema
 - Optional Python comparisons use `bench/python_onnxruntime.py` and are skipped automatically if local dependencies are unavailable.
 
 To run benchmark + append a `RUNS.md` entry + enforce goal checks:
@@ -347,9 +324,9 @@ threads, which adds latency to the first inference call.
    ```ruby
    # config/puma.rb
    on_worker_boot do
-     $gte_pool = GTE::Pool.new(ENV.fetch("GTE_MODEL_DIR"))
+     $gte_pool = GTE.config(ENV.fetch("GTE_MODEL_DIR"))
    end
    ```
 
-3. **If using `preload_app!`**, call `GTE::Pool.new` in `before_fork` and set
+3. **If using `preload_app!`**, call `GTE.config` in `before_fork` and set
    `GTE_INTRA_OP_NUM_THREADS=1` to avoid thread pool issues in child processes.

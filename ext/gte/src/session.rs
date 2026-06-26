@@ -16,12 +16,8 @@ pub(crate) fn resolve_pool_size() -> usize {
     {
         return n;
     }
-    if let Some(n) =
-        std::env::var("PUMA_MAX_THREADS").ok().and_then(|v| v.trim().parse::<usize>().ok()).filter(|&n| n > 0)
-    {
-        return n.min(8);
-    }
-    1
+    let cpus = std::thread::available_parallelism().map(std::num::NonZero::get).unwrap_or(2);
+    cpus.min(4).max(1)
 }
 
 pub struct SessionPool {
@@ -231,5 +227,13 @@ mod tests {
         let size = super::resolve_pool_size();
         assert_eq!(size, 16);
         std::env::remove_var("GTE_SESSION_POOL_SIZE");
+    }
+
+    #[test]
+    fn resolve_pool_size_defaults_to_cpu_count_capped_at_4() {
+        // Without GTE_SESSION_POOL_SIZE, the default is min(available_parallelism, 4).max(1).
+        // On any machine with >= 1 CPU, this should return between 1 and 4.
+        let size = super::resolve_pool_size();
+        assert!((1..=4).contains(&size), "expected 1-4, got {size}");
     }
 }

@@ -57,8 +57,8 @@ RSpec.describe 'Integration' do
     { input_ids: [enc.ids], attention_mask: [enc.attention_mask], type_ids: [enc.type_ids] }
   end
 
-  context 'GTE::Pool API', if: GTE_E5_AVAILABLE do
-    let(:pool) { GTE::Pool.new(GTE_E5_DIR) }
+  context 'GTE.config API', if: GTE_E5_AVAILABLE do
+    let(:pool) { GTE.config(GTE_E5_DIR) }
 
     it 'embed returns GTE::Tensor' do
       result = pool.embed('Hello world')
@@ -70,7 +70,7 @@ RSpec.describe 'Integration' do
   end
 
   context 'E5', if: GTE_E5_AVAILABLE do
-    let(:pool) { GTE::Pool.new(GTE_E5_DIR) }
+    let(:pool) { GTE.config(GTE_E5_DIR) }
 
     it 'batch embedding returns correct dimensions' do
       texts = ['Hello world', 'Goodbye world', 'Machine learning']
@@ -120,7 +120,7 @@ RSpec.describe 'Integration' do
     end
 
     it 'accepts an explicit output_tensor override' do
-      overridden = GTE::Pool.new(GTE_E5_DIR) { |config| config.with(output_tensor: 'last_hidden_state') }
+      overridden = GTE.config(GTE_E5_DIR) { |config| config.with(output_tensor: 'last_hidden_state') }
       result = overridden.embed('explicit output tensor')
       expect(result.rows).to eq(1)
       expect(result.dim).to eq(GTE_EMBEDDING_DIM)
@@ -128,7 +128,7 @@ RSpec.describe 'Integration' do
 
     it 'fails fast when output_tensor override is missing from model outputs' do
       expect do
-        GTE::Pool.new(GTE_E5_DIR) { |c| c.with(output_tensor: 'pooled_sentence_embeddings_debiased_normalized') }
+        GTE.config(GTE_E5_DIR) { |c| c.with(output_tensor: 'pooled_sentence_embeddings_debiased_normalized') }
       end.to raise_error(
         GTE::Error,
         /requested output tensor.*pooled_sentence_embeddings_debiased_normalized.*model outputs/i
@@ -136,14 +136,14 @@ RSpec.describe 'Integration' do
     end
 
     it 'applies max_length truncation override' do
-      overridden = GTE::Pool.new(GTE_E5_DIR) { |c| c.with(max_length: 8) }
+      overridden = GTE.config(GTE_E5_DIR) { |c| c.with(max_length: 8) }
       result = overridden.embed('word ' * 1000)
       expect(result.rows).to eq(1)
       expect(result.dim).to eq(GTE_EMBEDDING_DIM)
     end
 
     it 'truncates like tokenizer max length: suffix differences past max_length are ignored' do
-      overridden = GTE::Pool.new(GTE_E5_DIR) { |c| c.with(max_length: 8) }
+      overridden = GTE.config(GTE_E5_DIR) { |c| c.with(max_length: 8) }
       prefix = ('sharedprefix ' * 64).strip
       a = overridden.embed("query: #{prefix} alpha_suffix").row(0)
       b = overridden.embed("query: #{prefix} beta_suffix totally different tail").row(0)
@@ -152,9 +152,9 @@ RSpec.describe 'Integration' do
     end
 
     it 'accepts explicit padding mode overrides' do
-      auto = GTE::Pool.new(GTE_E5_DIR) { |c| c.with(padding: 'auto') }
-      fixed = GTE::Pool.new(GTE_E5_DIR) { |c| c.with(padding: 'fixed', max_length: 8) }
-      batch_longest = GTE::Pool.new(GTE_E5_DIR) { |c| c.with(padding: 'batch_longest') }
+      auto = GTE.config(GTE_E5_DIR) { |c| c.with(padding: 'auto') }
+      fixed = GTE.config(GTE_E5_DIR) { |c| c.with(padding: 'fixed', max_length: 8) }
+      batch_longest = GTE.config(GTE_E5_DIR) { |c| c.with(padding: 'batch_longest') }
 
       expect(auto.embed('padding mode test').dim).to eq(GTE_EMBEDDING_DIM)
       expect(fixed.embed('padding mode test').dim).to eq(GTE_EMBEDDING_DIM)
@@ -163,7 +163,7 @@ RSpec.describe 'Integration' do
 
     it 'fails fast on invalid padding mode override' do
       expect do
-        GTE::Pool.new(GTE_E5_DIR) { |c| c.with(padding: 'unknown') }
+        GTE.config(GTE_E5_DIR) { |c| c.with(padding: 'unknown') }
       end.to raise_error(GTE::Error, /padding mode.*auto, batch_longest, fixed/i)
     end
 
@@ -186,7 +186,7 @@ RSpec.describe 'Integration' do
   end
 
   context 'CLIP', if: GTE_CLIP_AVAILABLE do
-    let(:pool) { GTE::Pool.new(GTE_CLIP_DIR) }
+    let(:pool) { GTE.config(GTE_CLIP_DIR) }
 
     it 'batch embedding returns correct dimensions' do
       texts = ['a photo of a cat', 'a painting of a sunset']
@@ -217,9 +217,9 @@ RSpec.describe 'Integration' do
   end
 
   context 'Siglip2', if: GTE_SIGLIP2_AVAILABLE do
-    let(:pool) { GTE::Pool.new(GTE_SIGLIP2_DIR) }
+    let(:pool) { GTE.config(GTE_SIGLIP2_DIR) }
     let(:siglip2_pooler) do
-      GTE::Pool.new(GTE_SIGLIP2_DIR) { |c| c.with(output_tensor: 'pooler_output') }
+      GTE.config(GTE_SIGLIP2_DIR) { |c| c.with(output_tensor: 'pooler_output') }
     end
 
     def direct_siglip2_pooler_output(text, fixed_padding:)
@@ -277,8 +277,8 @@ RSpec.describe 'Integration' do
 
   context 'cross-model', if: GTE_E5_AVAILABLE && GTE_CLIP_AVAILABLE do
     it 'same text embedded by different models produces different dimension vectors' do
-      e5 = GTE::Pool.new(GTE_E5_DIR)
-      clip = GTE::Pool.new(GTE_CLIP_DIR)
+      e5 = GTE.config(GTE_E5_DIR)
+      clip = GTE.config(GTE_CLIP_DIR)
 
       e5_result = e5.embed('hello world')
       clip_result = clip.embed('hello world')
@@ -287,8 +287,8 @@ RSpec.describe 'Integration' do
     end
 
     it 'multiple pools from different models can coexist' do
-      e5 = GTE::Pool.new(GTE_E5_DIR)
-      clip = GTE::Pool.new(GTE_CLIP_DIR)
+      e5 = GTE.config(GTE_E5_DIR)
+      clip = GTE.config(GTE_CLIP_DIR)
 
       e5_result = e5.embed('test')
       clip_result = clip.embed('test')
@@ -300,7 +300,7 @@ RSpec.describe 'Integration' do
   context 'unsupported multimodal model inputs', if: GTE_CLIP_MULTIMODAL_AVAILABLE do
     it 'fails fast with actionable error when model requires pixel_values' do
       expect do
-        GTE::Pool.new(GTE_CLIP_MULTIMODAL_DIR)
+        GTE.config(GTE_CLIP_MULTIMODAL_DIR)
       end.to raise_error(
         GTE::Error,
         /pixel_values.*text_model\.onnx|text_model\.onnx.*pixel_values/i
@@ -309,7 +309,7 @@ RSpec.describe 'Integration' do
   end
 
   context 'performance baseline', if: GTE_E5_AVAILABLE do
-    let(:pool) { GTE::Pool.new(GTE_E5_DIR) }
+    let(:pool) { GTE.config(GTE_E5_DIR) }
 
     it 'batch embedding amortizes well (batch of 32 < 2x single time)' do
       single_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
@@ -328,7 +328,7 @@ RSpec.describe 'Integration' do
   end
 
   context 'concurrent single request path', if: GTE_E5_AVAILABLE do
-    let(:pool) { GTE::Pool.new(GTE_E5_DIR) }
+    let(:pool) { GTE.config(GTE_E5_DIR) }
 
     it 'matches single string and single-item batch embeddings for one text' do
       text = 'batch engine probe'

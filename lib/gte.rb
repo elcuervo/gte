@@ -11,8 +11,12 @@ end
 require 'gte/config'
 require 'gte/embedder'
 require 'gte/model'
-require 'gte/pool'
 require 'gte/reranker'
 
 module GTE
+  def self.config(model_dir, &block)
+    cfg = Embedder.default_config(model_dir)
+    cfg = block.call(cfg) if block
+    Model.new(cfg)
+  end
 end

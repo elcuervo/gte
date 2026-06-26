@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 RSpec.describe 'Threading and GVL release', if: GTE_E5_AVAILABLE do
-  let(:pool) { GTE::Pool.new(GTE_E5_DIR) }
+  let(:pool) { GTE.config(GTE_E5_DIR) }
   let(:text) { 'query: cat' }
 
   def time_concurrent(model, threads, calls_per_thread)

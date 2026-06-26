@@ -54,7 +54,7 @@ This repository is a Ruby gem with a Rust extension for text embeddings.
 When working on session lifecycle or pool construction, consider Puma
 `preload_app!` behavior. ONNX Runtime internal thread pools (created by
 `GTE_INTRA_OP_NUM_THREADS`) do not survive `fork()`. The pool is built at
-`GTE::Pool.new` time, so if called before fork, child workers inherit sessions
+`GTE.config` time, so if called before fork, child workers inherit sessions
 with broken thread pools. Use `GTE_INTRA_OP_NUM_THREADS=1` or build pools
 in `on_worker_boot` for forked environments.
 

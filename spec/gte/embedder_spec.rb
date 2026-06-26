@@ -41,7 +41,7 @@ RSpec.describe 'GTE::Embedder' do
   end
 
   context 'with real model fixture', if: GTE_FIXTURES_AVAILABLE do
-    let(:model) { GTE::Pool.new(GTE_E5_DIR) }
+    let(:model) { GTE.config(GTE_E5_DIR) }
     let(:sample_texts) { ['Hello world', 'The quick brown fox'] }
     let(:single_text)  { ['Hello world'] }
 
