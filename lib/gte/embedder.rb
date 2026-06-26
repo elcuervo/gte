@@ -5,24 +5,15 @@ module GTE
     DEFAULT_OPTIMIZATION_LEVEL = 3
 
     class << self
-      def config(model_dir)
-        cfg = default_config(model_dir)
-        cfg = yield(cfg) if block_given?
-        from_config(cfg)
-      end
-
       def from_config(config)
         new(
           config.model_dir,
           config.optimization_level,
           config.model_name.to_s,
-          config.normalize,
           config.output_tensor.to_s,
           config.max_length || 0,
           config.padding.to_s,
-          config.execution_providers.to_s,
-          config.lowercase_input ? true : false,
-          config.max_input_chars || 0
+          config.execution_providers.to_s
         )
       end
 
@@ -31,13 +22,10 @@ module GTE
           model_dir: File.expand_path(model_dir),
           optimization_level: DEFAULT_OPTIMIZATION_LEVEL,
           model_name: nil,
-          normalize: true,
           output_tensor: nil,
           max_length: nil,
           padding: nil,
-          execution_providers: nil,
-          lowercase_input: false,
-          max_input_chars: nil
+          execution_providers: nil
         )
       end
     end

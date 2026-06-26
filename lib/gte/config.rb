@@ -4,8 +4,7 @@ module GTE
   module Config
     Text = Data.define(
       :model_dir, :optimization_level,
-      :model_name, :normalize, :output_tensor, :max_length, :padding, :execution_providers,
-      :lowercase_input, :max_input_chars
+      :model_name, :output_tensor, :max_length, :padding, :execution_providers
     )
 
     Reranker = Data.define(

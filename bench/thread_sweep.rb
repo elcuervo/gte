@@ -99,8 +99,8 @@ MODELS.each do |key, cfg|
 
   best = nil
   options[:candidates].each do |cap|
-    ENV['GTE_SESSION_POOL_CAP'] = cap.to_s
-    model = GTE.config(File.expand_path(dir, ROOT))
+    ENV['GTE_SESSION_POOL_SIZE'] = cap.to_s
+    model = GTE::Pool.new(File.expand_path(dir, ROOT))
     (options[:concurrency] * 2).times { |i| model.embed(format(cfg.fetch('request_template'), idx: "warmup-#{i}")) }
 
     stats = run_once(model, requests, options[:concurrency])

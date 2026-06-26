@@ -64,25 +64,22 @@ puts
 
 report('boot')
 
-gte_a = GTE.config(options[:model_dir])
+gte_a = GTE::Pool.new(options[:model_dir])
 report('gte fetch #1')
 gte_a.embed('query: warmup')
 report('gte warmup')
 
-gte_b = GTE.config(options[:model_dir])
-report('gte fetch #2 (same key)')
-puts "same_instance=#{gte_a.equal?(gte_b)}"
+gte_b = GTE::Pool.new(options[:model_dir])
+report('gte fetch #2')
 
 texts = Array.new(options[:burst]) { |i| "query: memory probe #{i}" }
 burst('gte thread burst', workers: options[:workers], requests: texts) { |text| gte_a.embed(text) }
 
-gte_new = GTE.config(options[:model_dir])
-report('gte new #2 (same key)')
-puts "new_reuses_instance=#{gte_new.equal?(gte_a)}"
+gte_new = GTE::Pool.new(options[:model_dir])
+report('gte new #2')
 
-gte_xnnpack = GTE.config(options[:model_dir]) { |config| config.with(execution_providers: 'xnnpack') }
-report('gte new (different key)')
-puts "different_key_distinct=#{!gte_xnnpack.equal?(gte_a)}"
+gte_xnnpack = GTE::Pool.new(options[:model_dir]) { |config| config.with(execution_providers: 'xnnpack') }
+report('gte new (xnnpack)')
 burst('gte two-key burst', workers: options[:workers], requests: texts) do |text|
   (text.hash.even? ? gte_a : gte_xnnpack).embed(text)
 end

@@ -3,11 +3,13 @@
 #![allow(unused_results)]
 #![allow(unused_qualifications)]
 
-use crate::embedder::{normalize_l2, output_name_suggests_normalized, Embedder};
+use crate::embedder::Embedder;
 use crate::error::GteError;
 use crate::model_config::ModelLoadOverrides;
 use crate::reranker::Reranker;
 use magnus::{function, method, prelude::*, wrap, Error, RArray, Ruby};
+use magnus::method::RubyFunction7;
+use magnus::method::RubyFunction8;
 use std::os::raw::c_void;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
@@ -15,7 +17,6 @@ use std::sync::Arc;
 #[wrap(class = "GTE::Embedder", free_immediately, size)]
 pub struct RbEmbedder {
     inner: Arc<Embedder>,
-    normalize: bool,
 }
 
 #[wrap(class = "GTE::Reranker", free_immediately, size)]
@@ -38,7 +39,6 @@ pub struct RbTensor {
 struct InferArgs {
     embedder: *const Embedder,
     texts: *const Vec<String>,
-    normalize: bool,
     result: Option<crate::error::Result<ndarray::Array2<f32>>>,
 }
 
@@ -67,13 +67,7 @@ fn panic_payload_to_string(payload: Box<dyn std::any::Any + Send>) -> String {
 unsafe extern "C" fn run_embed_without_gvl(ptr: *mut c_void) -> *mut c_void {
     let args = &mut *(ptr as *mut InferArgs);
     let run_result = catch_unwind(AssertUnwindSafe(|| {
-        // Full embedding path (tokenization + inference) runs without the GVL.
-        let embeddings = (*args.embedder).embed_ref(&*args.texts)?;
-        if args.normalize {
-            Ok(normalize_l2(embeddings))
-        } else {
-            Ok(embeddings)
-        }
+        (*args.embedder).embed(&*args.texts)
     }));
     args.result = Some(match run_result {
         Ok(result) => result,
@@ -99,12 +93,10 @@ unsafe extern "C" fn run_score_without_gvl(ptr: *mut c_void) -> *mut c_void {
 
 fn infer_without_gvl(
     embedder: &Arc<Embedder>,
-    normalize: bool,
     texts: Vec<String>,
 ) -> Result<ndarray::Array2<f32>, Error> {
     let embeddings = unsafe {
-        let mut args =
-            InferArgs { embedder: Arc::as_ptr(embedder), texts: &texts as *const Vec<String>, normalize, result: None };
+        let mut args = InferArgs { embedder: Arc::as_ptr(embedder), texts: &texts as *const Vec<String>, result: None };
         rb_sys::rb_thread_call_without_gvl(
             Some(run_embed_without_gvl),
             &mut args as *mut InferArgs as *mut c_void,
@@ -167,13 +159,10 @@ impl RbEmbedder {
         dir_path: String,
         optimization_level: u8,
         model_name: String,
-        normalize: bool,
         output_tensor: String,
         max_length: usize,
         padding: String,
         execution_providers: String,
-        lowercase_input: bool,
-        max_input_chars: usize,
     ) -> Result<Self, Error> {
         let name = if model_name.is_empty() { None } else { Some(model_name.as_str()) };
         let output_override = if output_tensor.is_empty() { None } else { Some(output_tensor.as_str()) };
@@ -181,29 +170,26 @@ impl RbEmbedder {
         let execution_providers_override =
             if execution_providers.is_empty() { None } else { Some(execution_providers.as_str()) };
         let padding_override = if padding.is_empty() { None } else { Some(padding.as_str()) };
-        let max_input_chars_override = if max_input_chars == 0 { None } else { Some(max_input_chars) };
         let overrides = ModelLoadOverrides {
             model_name: name,
             output_tensor: output_override,
             max_length: max_length_override,
             padding: padding_override,
             execution_providers: execution_providers_override,
-            lowercase_input: Some(lowercase_input),
-            max_input_chars: max_input_chars_override,
+            ..ModelLoadOverrides::default()
         };
         let embedder = Embedder::from_dir(&dir_path, optimization_level, overrides).map_err(magnus::Error::from)?;
-        let skip_normalize = normalize && output_name_suggests_normalized(&embedder.config.output_tensor);
-        Ok(RbEmbedder { inner: Arc::new(embedder), normalize: normalize && !skip_normalize })
+        Ok(RbEmbedder { inner: Arc::new(embedder) })
     }
 
     pub fn rb_embed(_ruby: &Ruby, rb_self: &Self, texts: RArray) -> Result<RbTensor, Error> {
         let texts: Vec<String> = texts.to_vec()?;
-        let embeddings = infer_without_gvl(&rb_self.inner, rb_self.normalize, texts)?;
+        let embeddings = infer_without_gvl(&rb_self.inner, texts)?;
         tensor_from_array(embeddings)
     }
 
     pub fn rb_embed_one(_ruby: &Ruby, rb_self: &Self, text: String) -> Result<RbTensor, Error> {
-        let embeddings = infer_without_gvl(&rb_self.inner, rb_self.normalize, vec![text])?;
+        let embeddings = infer_without_gvl(&rb_self.inner, vec![text])?;
         tensor_from_array(embeddings)
     }
 }
@@ -219,8 +205,6 @@ impl RbReranker {
         max_length: usize,
         padding: String,
         execution_providers: String,
-        _lowercase_input: bool,
-        _max_input_chars: usize,
     ) -> Result<Self, Error> {
         let name = if model_name.is_empty() { None } else { Some(model_name.as_str()) };
         let output_override = if output_tensor.is_empty() { None } else { Some(output_tensor.as_str()) };
@@ -335,12 +319,12 @@ impl RbTensor {
 pub fn register(ruby: &Ruby) -> Result<(), Error> {
     let module = ruby.define_module("GTE")?;
     let embedder_class = module.define_class("Embedder", ruby.class_object())?;
-    embedder_class.define_singleton_method("new", function!(RbEmbedder::rb_new, 10))?;
+    embedder_class.define_singleton_method("new", function!(RbEmbedder::rb_new, 7))?;
     embedder_class.define_method("embed", method!(RbEmbedder::rb_embed, 1))?;
     embedder_class.define_method("embed_one", method!(RbEmbedder::rb_embed_one, 1))?;
 
     let reranker_class = module.define_class("Reranker", ruby.class_object())?;
-    reranker_class.define_singleton_method("new", function!(RbReranker::rb_new, 10))?;
+    reranker_class.define_singleton_method("new", function!(RbReranker::rb_new, 8))?;
     reranker_class.define_method("score", method!(RbReranker::rb_score, 2))?;
 
     let tensor_class = module.define_class("Tensor", ruby.class_object())?;

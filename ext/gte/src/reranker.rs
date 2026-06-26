@@ -6,7 +6,7 @@ use crate::model_profile::{
 };
 use crate::pipeline::{extract_output_tensor, InputTensors};
 use crate::postprocess::sigmoid_scores;
-use crate::session::{build_session, SessionPool};
+use crate::session::{build_session, resolve_pool_size, SessionPool};
 use crate::tokenizer::{parse_padding_mode_override, Tokenizer};
 use std::path::{Path, PathBuf};
 
@@ -86,7 +86,7 @@ impl Reranker {
             lowercase_input: false,
             max_input_chars: None,
         };
-        let pool = SessionPool::new(session, &model_path, &model_config)?;
+        let pool = SessionPool::new(&model_path, &model_config, resolve_pool_size())?;
         Ok(Self { tokenizer, pool, config })
     }
 
@@ -102,13 +102,12 @@ impl Reranker {
 
     fn score_tokenized(&self, tokenized: &crate::tokenizer::Tokenized, apply_sigmoid: bool) -> Result<Vec<f32>> {
         let input_tensors = InputTensors::from_tokenized(tokenized, self.config.with_attention_mask)?;
-        let output_name = self.config.output_tensor.clone();
         let inputs = input_tensors.inputs;
 
         self.pool.with_session(|session| {
             let outputs = session.run(inputs).map_err(|e| GteError::Ort(e.to_string()))?;
 
-            let array = extract_output_tensor(&outputs, output_name.as_str())?;
+            let array = extract_output_tensor(&outputs, self.config.output_tensor.as_str())?;
 
             let mut scores = match array.ndim() {
                 1 => array.into_dimensionality::<ndarray::Ix1>()?.to_vec(),
@@ -116,14 +115,16 @@ impl Reranker {
                     let shape = array.shape();
                     if shape[1] == 0 {
                         return Err(GteError::Inference(format!(
-                            "reranker output '{output_name}' has invalid shape {shape:?}"
+                            "reranker output '{}' has invalid shape {shape:?}",
+                            self.config.output_tensor
                         )));
                     }
                     array.slice(ndarray::s![.., 0]).to_vec()
                 }
                 n => {
                     return Err(GteError::Inference(format!(
-                        "reranker output '{output_name}' rank {n} is unsupported; expected rank 1 or 2"
+                        "reranker output '{}' rank {n} is unsupported; expected rank 1 or 2",
+                        self.config.output_tensor
                     )))
                 }
             };

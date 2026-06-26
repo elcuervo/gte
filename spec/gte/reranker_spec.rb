@@ -18,7 +18,7 @@ RSpec.describe 'GTE::Reranker' do
 
     it 'accepts execution_providers in config without argument errors' do
       expect do
-        GTE::Reranker.config('/nonexistent/dir') { |config| config.with(execution_providers: 'cpu') }
+        GTE::Reranker.new('/nonexistent/dir') { |config| config.with(execution_providers: 'cpu') }
       end.to raise_error(GTE::Error)
     end
   end
@@ -33,7 +33,7 @@ RSpec.describe 'GTE::Reranker' do
     end
 
     it 'scores query/candidate pairs with one score per candidate' do
-      reranker = GTE::Reranker.config(GTE_RERANK_DIR)
+      reranker = GTE::Reranker.new(GTE_RERANK_DIR)
       scores = reranker.score(query, candidates)
 
       expect(scores).to be_a(Array)
@@ -41,8 +41,8 @@ RSpec.describe 'GTE::Reranker' do
       scores.each { |score| expect(score).to be_a(Float) }
     end
 
-    it 'supports class-level config helper and ranked output' do
-      reranker = GTE::Reranker.config(GTE_RERANK_DIR) { |config| config.with(sigmoid: true) }
+    it 'supports class-level config and ranked output' do
+      reranker = GTE::Reranker.new(GTE_RERANK_DIR) { |config| config.with(sigmoid: true) }
       ranked = reranker.rerank(query: query, candidates: candidates)
 
       expect(ranked.length).to eq(candidates.length)

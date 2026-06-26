@@ -11,33 +11,8 @@ end
 require 'gte/config'
 require 'gte/embedder'
 require 'gte/model'
+require 'gte/pool'
 require 'gte/reranker'
 
 module GTE
-  @model_cache_mutex = Mutex.new
-  @model_cache = {}
-
-  class << self
-    def config(model_dir)
-      cfg = Embedder.default_config(model_dir)
-
-      cfg = yield(cfg) if block_given?
-
-      @model_cache_mutex.synchronize do
-        @model_cache[cache_key(cfg)] ||= Model.new(cfg)
-      end
-    end
-
-    def warmup(runner, threads:)
-      threads.times.map do
-        Thread.new { runner.embed('warmup') }
-      end.each(&:join)
-    end
-
-    private
-
-    def cache_key(cfg)
-      cfg.to_h
-    end
-  end
 end

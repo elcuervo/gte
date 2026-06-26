@@ -9,7 +9,6 @@ RSpec.describe GTE::Embedder do
 
       expect(config.model_dir).to eq('/tmp/demo-model')
       expect(config.optimization_level).to eq(3)
-      expect(config.normalize).to be(true)
       expect(config.execution_providers).to be_nil
     end
   end
@@ -20,17 +19,13 @@ RSpec.describe GTE::Embedder do
         '/tmp/demo-model',
         3,
         '',
-        false,
         'sentence_embedding',
         256,
         'fixed',
-        'cpu',
-        false,
-        0
+        'cpu'
       ).and_return(:built)
 
       config = described_class.default_config('/tmp/demo-model').with(
-        normalize: false,
         output_tensor: 'sentence_embedding',
         max_length: 256,
         padding: 'fixed',
@@ -40,28 +35,17 @@ RSpec.describe GTE::Embedder do
       expect(described_class.from_config(config)).to eq(:built)
     end
   end
-
-  describe '.config' do
-    it 'uses the shared text embedding defaults' do
-      expect(described_class).to receive(:from_config) do |config|
-        expect(config.normalize).to be(true)
-        :embedder
-      end
-
-      expect(described_class.config('/tmp/gte-shared-defaults')).to eq(:embedder)
-    end
-  end
 end
 
-RSpec.describe GTE do
-  describe '.config' do
-    it 'uses the embedder shared text defaults' do
-      expect(GTE::Model).to receive(:new) do |config|
-        expect(config.normalize).to be(true)
-        :model
-      end
+RSpec.describe GTE::Pool do
+  describe '.new' do
+    it 'constructs a pool from a model directory' do
+      model_double = instance_double(GTE::Model, embed: nil)
+      expect(GTE::Model).to receive(:new).and_return(model_double)
+      expect_any_instance_of(GTE::Pool).to receive(:warmup)
 
-      expect(described_class.config('/tmp/gte-shared-defaults')).to eq(:model)
+      pool = GTE::Pool.new('/tmp/gte-shared-defaults')
+      expect(pool).to be_a(GTE::Pool)
     end
   end
 end

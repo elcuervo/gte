@@ -11,21 +11,20 @@ pub struct InputTensors<'a> {
 
 impl<'a> InputTensors<'a> {
     pub fn from_tokenized(tokenized: &'a Tokenized, with_attention_mask: bool) -> Result<Self> {
-        let input_ids_view: ArrayView2<'_, i64> =
-            ArrayView2::from_shape((tokenized.rows, tokenized.cols), tokenized.input_ids.as_slice())?;
-        let attention_mask: ArrayView2<'_, i64> =
-            ArrayView2::from_shape((tokenized.rows, tokenized.cols), tokenized.attn_masks.as_slice())?;
+        let input_ids_view = tokenized.input_ids.view();
+        let attention_mask = tokenized.attn_masks.view();
 
-        let mut inputs = Vec::with_capacity(2 + usize::from(tokenized.type_ids.is_some()));
-        inputs.push(("input_ids", SessionInputValue::from(TensorRef::from_array_view(input_ids_view)?)));
+        let mut inputs = Vec::with_capacity(2);
 
         if with_attention_mask {
+            inputs.push(("input_ids", SessionInputValue::from(TensorRef::from_array_view(input_ids_view)?)));
             inputs.push(("attention_mask", SessionInputValue::from(TensorRef::from_array_view(attention_mask)?)));
+        } else {
+            inputs.push(("input_ids", SessionInputValue::from(TensorRef::from_array_view(input_ids_view)?)));
         }
 
-        if let Some(type_ids) = tokenized.type_ids.as_deref() {
-            let type_ids_view: ArrayView2<'_, i64> =
-                ArrayView2::from_shape((tokenized.rows, tokenized.cols), type_ids)?;
+        if let Some(ref type_ids) = tokenized.type_ids {
+            let type_ids_view = type_ids.view();
             inputs.push(("token_type_ids", SessionInputValue::from(TensorRef::from_array_view(type_ids_view)?)));
         }
 

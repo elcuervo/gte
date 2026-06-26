@@ -3,6 +3,7 @@
 require 'spec_helper'
 
 RSpec.describe 'Threading and GVL release', if: GTE_E5_AVAILABLE do
+  let(:pool) { GTE::Pool.new(GTE_E5_DIR) }
   let(:text) { 'query: cat' }
 
   def time_concurrent(model, threads, calls_per_thread)
@@ -15,8 +16,7 @@ RSpec.describe 'Threading and GVL release', if: GTE_E5_AVAILABLE do
   end
 
   it 'releases GVL: background Ruby thread makes progress during inference' do
-    model = GTE.config(GTE_E5_DIR)
-    10.times { model.embed_binary(text) }
+    10.times { pool.embed_binary(text) }
 
     stop = false
     counter = 0
@@ -27,11 +27,10 @@ RSpec.describe 'Threading and GVL release', if: GTE_E5_AVAILABLE do
       end
     end
 
-    50.times { model.embed_binary(text) }
+    50.times { pool.embed_binary(text) }
     stop = true
     spinner.join
 
-    # If GVL held during inference, spinner never gets scheduled.
     expect(counter).to be > 100, "spinner advanced #{counter}× — GVL likely held"
   end
 end

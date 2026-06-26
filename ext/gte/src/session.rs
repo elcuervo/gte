@@ -3,133 +3,56 @@ use crate::model_config::{ExtractorMode, ModelConfig};
 use crate::pipeline::{extract_output_tensor, InputTensors};
 use crate::postprocess::mean_pool;
 use crate::tokenizer::Tokenized;
-use ndarray::{Array2, ArrayView2, ArrayViewD, Ix2};
+use ndarray::{Array2, ArrayViewD, Ix2};
 use ort::execution_providers::{CoreMLExecutionProvider, ExecutionProviderDispatch, XNNPACKExecutionProvider};
 use ort::session::{OutputSelector, RunOptions, Session};
 use parking_lot::Mutex;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
 
-// ---------------------------------------------------------------------------
-// Lazy session pool — starts with 1 session, grows on contention, capped.
-//
-// Pool max is resolved in order:
-//   1. GTE_SESSION_POOL_SIZE env var (explicit override)
-//   2. Auto: min(MAX_THREADS, available_parallelism), clamped to [2, 4]
-//
-// At idle the pool holds 1 session (same memory as pure Ruby's single
-// OnnxRuntime::Model).  When all existing sessions are busy and the cap
-// hasn't been reached, a new session is created on-demand.
-// ---------------------------------------------------------------------------
-
-fn resolve_pool_cap() -> usize {
+pub fn resolve_pool_size() -> usize {
     if let Some(n) =
         std::env::var("GTE_SESSION_POOL_SIZE").ok().and_then(|v| v.trim().parse::<usize>().ok()).filter(|&n| n > 0)
     {
         return n;
     }
-
-    let max_threads = std::env::var("MAX_THREADS").ok().and_then(|v| v.trim().parse::<usize>().ok()).unwrap_or(5);
-    let cpus = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
-    max_threads.min(cpus).clamp(2, 4)
+    if let Some(n) =
+        std::env::var("PUMA_MAX_THREADS").ok().and_then(|v| v.trim().parse::<usize>().ok()).filter(|&n| n > 0)
+    {
+        return n.min(8);
+    }
+    1
 }
 
 pub struct SessionPool {
-    inner: Mutex<PoolInner>,
+    sessions: Vec<Mutex<Session>>,
     next_idx: AtomicUsize,
-    cap: usize,
-}
-
-struct PoolInner {
-    sessions: Vec<Arc<Mutex<Session>>>,
-    model_path: PathBuf,
-    build_config: ModelConfig,
 }
 
 impl SessionPool {
-    pub fn new(initial: Session, model_path: &Path, build_config: &ModelConfig) -> Result<Self> {
-        let cap = resolve_pool_cap();
-        let sessions = vec![Arc::new(Mutex::new(initial))];
-
-        Ok(Self {
-            inner: Mutex::new(PoolInner {
-                sessions,
-                model_path: model_path.to_path_buf(),
-                build_config: build_config.clone(),
-            }),
-            next_idx: AtomicUsize::new(0),
-            cap,
-        })
-    }
-
-    pub fn run(&self, tokenized: &Tokenized, config: &ModelConfig) -> Result<Array2<f32>> {
-        self.with_session(|session| run_session(session, tokenized, config))
+    pub fn new(model_path: &Path, config: &ModelConfig, pool_size: usize) -> Result<Self> {
+        let sessions = (0..pool_size)
+            .map(|_| build_session(model_path, config))
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .map(Mutex::new)
+            .collect();
+        Ok(Self { sessions, next_idx: AtomicUsize::new(0) })
     }
 
     pub fn with_session<F, R>(&self, f: F) -> Result<R>
     where
         F: FnOnce(&mut Session) -> Result<R>,
     {
-        const SPIN_LIMIT: u32 = 64;
+        let idx = self.next_idx.fetch_add(1, Ordering::Relaxed) % self.sessions.len();
+        let mut session = self.sessions[idx].lock();
+        f(&mut session)
+    }
 
-        loop {
-            // Snapshot the pool under the outer lock so the scan below
-            // doesn't contend on that lock at all.
-            let arcs: Vec<Arc<Mutex<Session>>> = {
-                let inner = self.inner.lock();
-                inner.sessions.clone()
-            };
-            let len = arcs.len();
-            let start = self.next_idx.fetch_add(1, Ordering::Relaxed) % len;
-
-            for offset in 0..len {
-                let idx = (start + offset) % len;
-                if let Some(mut guard) = arcs[idx].try_lock() {
-                    return f(&mut guard);
-                }
-            }
-
-            // All sessions busy — try to grow the pool
-            let grew = {
-                let mut inner = self.inner.lock();
-                if inner.sessions.len() < self.cap {
-                    match build_session(&inner.model_path, &inner.build_config) {
-                        Ok(session) => {
-                            inner.sessions.push(Arc::new(Mutex::new(session)));
-                            true
-                        }
-                        Err(e) => return Err(e),
-                    }
-                } else {
-                    false
-                }
-            };
-
-            if grew {
-                continue;
-            }
-
-            // At cap — spin briefly, then block on a session
-            let idx = self.next_idx.fetch_add(1, Ordering::Relaxed) % len;
-            let arc = Arc::clone(&arcs[idx]);
-
-            for _ in 0..SPIN_LIMIT {
-                if let Some(mut guard) = arc.try_lock() {
-                    return f(&mut guard);
-                }
-                std::hint::spin_loop();
-            }
-
-            let mut guard = arc.lock();
-            return f(&mut guard);
-        }
+    pub fn len(&self) -> usize {
+        self.sessions.len()
     }
 }
-
-// ---------------------------------------------------------------------------
-// Session construction
-// ---------------------------------------------------------------------------
 
 pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Result<Session> {
     fn ort_err(e: impl std::fmt::Display) -> GteError {
@@ -167,10 +90,14 @@ pub fn build_session<P: AsRef<Path>>(model_path: P, config: &ModelConfig) -> Res
 }
 
 fn auto_detect_providers() -> Vec<ExecutionProviderDispatch> {
-    let mut providers = Vec::new();
     #[cfg(target_arch = "aarch64")]
-    providers.push(XNNPACKExecutionProvider::default().build().fail_silently());
-    providers
+    {
+        vec![XNNPACKExecutionProvider::default().build().fail_silently()]
+    }
+    #[cfg(not(target_arch = "aarch64"))]
+    {
+        Vec::new()
+    }
 }
 
 fn preferred_execution_providers(order_override: Option<&str>) -> Vec<ExecutionProviderDispatch> {
@@ -196,10 +123,6 @@ fn preferred_execution_providers(order_override: Option<&str>) -> Vec<ExecutionP
     providers
 }
 
-// ---------------------------------------------------------------------------
-// Run a single inference
-// ---------------------------------------------------------------------------
-
 pub fn run_session(session: &mut Session, tokenized: &Tokenized, config: &ModelConfig) -> Result<Array2<f32>> {
     let input_tensors = InputTensors::from_tokenized(tokenized, config.with_attention_mask)?;
     let run_opts = RunOptions::new()
@@ -214,7 +137,7 @@ pub fn run_session(session: &mut Session, tokenized: &Tokenized, config: &ModelC
 
 fn extract_embeddings(
     array: ArrayViewD<'_, f32>,
-    attention_mask: ArrayView2<'_, i64>,
+    attention_mask: ndarray::ArrayView2<'_, i64>,
     config: &ModelConfig,
 ) -> Result<Array2<f32>> {
     match config.mode {
@@ -247,21 +170,6 @@ mod tests {
 
     use super::extract_embeddings;
 
-    fn resolve_provider_order_with_env(order_override: Option<&str>, env_order: Option<&str>) -> String {
-        order_override.or(env_order).unwrap_or("cpu").to_ascii_lowercase()
-    }
-
-    fn parse_provider_registrations(order: &str) -> Vec<&str> {
-        let mut providers = Vec::new();
-        for provider in order.split(',').map(str::trim).filter(|p| !p.is_empty()) {
-            match provider {
-                "xnnpack" | "coreml" => providers.push(provider),
-                _ => {}
-            }
-        }
-        providers
-    }
-
     fn test_config(mode: ExtractorMode) -> ModelConfig {
         ModelConfig {
             max_length: 8,
@@ -280,37 +188,6 @@ mod tests {
     fn empty_attention_mask() -> ArrayView2<'static, i64> {
         static EMPTY: [i64; 0] = [];
         ArrayView2::from_shape((0, 0), &EMPTY).unwrap()
-    }
-
-    #[test]
-    fn parse_provider_registrations_keeps_supported_order() {
-        let parsed = parse_provider_registrations("xnnpack,coreml");
-        assert_eq!(parsed, vec!["xnnpack", "coreml"]);
-    }
-
-    #[test]
-    fn parse_provider_registrations_treats_cpu_and_none_as_fallback() {
-        assert!(parse_provider_registrations("cpu").is_empty());
-        assert!(parse_provider_registrations("none").is_empty());
-        assert!(parse_provider_registrations("none,cpu").is_empty());
-    }
-
-    #[test]
-    fn parse_provider_registrations_ignores_unknowns_and_empties() {
-        let parsed = parse_provider_registrations(" ,xnnpak,,xnnpack,unknown,coreml,");
-        assert_eq!(parsed, vec!["xnnpack", "coreml"]);
-    }
-
-    #[test]
-    fn resolve_provider_order_prefers_override() {
-        assert_eq!(resolve_provider_order_with_env(Some("xnnpack"), Some("coreml")), "xnnpack");
-        assert_eq!(resolve_provider_order_with_env(Some("CPU"), None), "cpu");
-    }
-
-    #[test]
-    fn resolve_provider_order_falls_back_to_env_then_cpu_default() {
-        assert_eq!(resolve_provider_order_with_env(None, Some("coreml")), "coreml");
-        assert_eq!(resolve_provider_order_with_env(None, None), "cpu");
     }
 
     #[test]
@@ -344,5 +221,13 @@ mod tests {
                 .unwrap();
 
         assert_eq!(extracted, expected);
+    }
+
+    #[test]
+    fn resolve_pool_size_uses_env_var() {
+        std::env::set_var("GTE_SESSION_POOL_SIZE", "16");
+        let size = super::resolve_pool_size();
+        assert_eq!(size, 16);
+        std::env::remove_var("GTE_SESSION_POOL_SIZE");
     }
 }

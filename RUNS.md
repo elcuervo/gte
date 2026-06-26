@@ -521,3 +521,252 @@ Performance run ledger for Puma-like single-request concurrency benchmarks.
   }
 }
 ```
+
+## 2026-06-25T23:44:51Z | v0.0.15 | 8189832
+- Goal (response-time p95 ratio across enabled competitors): PASS
+- Goal (service-time p95 ratio across enabled competitors): PASS
+- Regression vs previous run (GTE response-time p95 <= +15.0%): PASS
+
+```json
+{
+  "kind": "puma_compare_run",
+  "recorded_at": "2026-06-25T23:45:06Z",
+  "generated_at": "2026-06-25T23:44:51Z",
+  "gem_version": "0.0.15",
+  "git_sha": "8189832",
+  "platform": "arm64-darwin25",
+  "ruby_version": "3.4.8",
+  "mode": "puma_like_in_process",
+  "concurrency": 16,
+  "iterations": 20,
+  "run_samples": 1,
+  "thresholds": {
+    "goal_metric": "response_time_p95_and_service_time_p95",
+    "sample_aggregation": "median",
+    "min_p95_ratio": 1.0,
+    "min_service_ratio": 0.0,
+    "regression_tolerance": 0.15
+  },
+  "status": {
+    "goal_response_p95_ratio_all_models": true,
+    "goal_service_p95_ratio_all_models": true,
+    "regression_vs_previous": true,
+    "regression_baseline": "none"
+  },
+  "metrics": {
+    "e5": {
+      "gte_response_p95_ms": 20.481999963521957,
+      "gte_response_median_ms": 16.604000004008412,
+      "gte_service_p95_ms": 10.476000024937093,
+      "gte_throughput_rps": 975.847764771866,
+      "minimum_ratio_p95": 2.983107120511741,
+      "minimum_service_ratio_p95": 0.3695112540089304,
+      "competitors": {
+        "pure_ruby": {
+          "metric": "response_time.p95_ms",
+          "gte_value": 20.481999963521957,
+          "competitor_value": 61.09999993350357,
+          "ratio_over_gte": 2.983107120511741,
+          "pass": true
+        }
+      },
+      "service_competitors": {
+        "pure_ruby": {
+          "metric": "service_time.p95_ms",
+          "gte_value": 10.476000024937093,
+          "competitor_value": 3.8709999062120914,
+          "ratio_over_gte": 0.3695112540089304,
+          "pass": true
+        }
+      }
+    },
+    "clip": {
+      "gte_response_p95_ms": 18.484000000171363,
+      "gte_response_median_ms": 16.559000010602176,
+      "gte_service_p95_ms": 16.162000014446676,
+      "gte_throughput_rps": 1080.6137915460877,
+      "minimum_ratio_p95": 2.8371023591542293,
+      "minimum_service_ratio_p95": 0.21556737922826957,
+      "competitors": {
+        "pure_ruby": {
+          "metric": "response_time.p95_ms",
+          "gte_value": 18.484000000171363,
+          "competitor_value": 52.44100000709295,
+          "ratio_over_gte": 2.8371023591542293,
+          "pass": true
+        }
+      },
+      "service_competitors": {
+        "pure_ruby": {
+          "metric": "service_time.p95_ms",
+          "gte_value": 16.162000014446676,
+          "competitor_value": 3.4839999862015247,
+          "ratio_over_gte": 0.21556737922826957,
+          "pass": true
+        }
+      }
+    },
+    "siglip2": {
+      "gte_response_p95_ms": 42.15800005476922,
+      "gte_response_median_ms": 30.919000040739775,
+      "gte_service_p95_ms": 26.540999999269843,
+      "gte_throughput_rps": 474.0235119659566,
+      "minimum_ratio_p95": 2.8775321364539668,
+      "minimum_service_ratio_p95": 0.2691307797207097,
+      "competitors": {
+        "pure_ruby": {
+          "metric": "response_time.p95_ms",
+          "gte_value": 42.15800005476922,
+          "competitor_value": 121.31099996622652,
+          "ratio_over_gte": 2.8775321364539668,
+          "pass": true
+        }
+      },
+      "service_competitors": {
+        "pure_ruby": {
+          "metric": "service_time.p95_ms",
+          "gte_value": 26.540999999269843,
+          "competitor_value": 7.143000024370849,
+          "ratio_over_gte": 0.2691307797207097,
+          "pass": true
+        }
+      }
+    }
+  },
+  "regressions": {}
+}
+```
+
+## 2026-06-26T00:35:11Z | v0.0.15 | 8189832
+- Goal (response-time p95 ratio across enabled competitors): PASS
+- Goal (service-time p95 ratio across enabled competitors): PASS
+- Regression vs previous run (GTE response-time p95 <= +15.0%): FAIL
+
+```json
+{
+  "kind": "puma_compare_run",
+  "recorded_at": "2026-06-26T00:35:33Z",
+  "generated_at": "2026-06-26T00:35:11Z",
+  "gem_version": "0.0.15",
+  "git_sha": "8189832",
+  "platform": "arm64-darwin25",
+  "ruby_version": "3.4.8",
+  "mode": "puma_like_in_process",
+  "concurrency": 16,
+  "iterations": 20,
+  "run_samples": 1,
+  "thresholds": {
+    "goal_metric": "response_time_p95_and_service_time_p95",
+    "sample_aggregation": "median",
+    "min_p95_ratio": 1.0,
+    "min_service_ratio": 0.0,
+    "regression_tolerance": 0.15
+  },
+  "status": {
+    "goal_response_p95_ratio_all_models": true,
+    "goal_service_p95_ratio_all_models": true,
+    "regression_vs_previous": false,
+    "regression_baseline": "previous_run"
+  },
+  "metrics": {
+    "e5": {
+      "gte_response_p95_ms": 24.10699997562915,
+      "gte_response_median_ms": 13.72699998319149,
+      "gte_service_p95_ms": 13.401999953202903,
+      "gte_throughput_rps": 828.5347367834814,
+      "minimum_ratio_p95": 3.7268013496373507,
+      "minimum_service_ratio_p95": 0.4803014494941089,
+      "competitors": {
+        "pure_ruby": {
+          "metric": "response_time.p95_ms",
+          "gte_value": 24.10699997562915,
+          "competitor_value": 89.8420000448823,
+          "ratio_over_gte": 3.7268013496373507,
+          "pass": true
+        }
+      },
+      "service_competitors": {
+        "pure_ruby": {
+          "metric": "service_time.p95_ms",
+          "gte_value": 13.401999953202903,
+          "competitor_value": 6.437000003643334,
+          "ratio_over_gte": 0.4803014494941089,
+          "pass": true
+        }
+      }
+    },
+    "clip": {
+      "gte_response_p95_ms": 18.399000051431358,
+      "gte_response_median_ms": 15.087999985553324,
+      "gte_service_p95_ms": 12.754000024870038,
+      "gte_throughput_rps": 1086.012159534808,
+      "minimum_ratio_p95": 3.4397521542544833,
+      "minimum_service_ratio_p95": 0.38191939346175263,
+      "competitors": {
+        "pure_ruby": {
+          "metric": "response_time.p95_ms",
+          "gte_value": 18.399000051431358,
+          "competitor_value": 63.28800006303936,
+          "ratio_over_gte": 3.4397521542544833,
+          "pass": true
+        }
+      },
+      "service_competitors": {
+        "pure_ruby": {
+          "metric": "service_time.p95_ms",
+          "gte_value": 12.754000024870038,
+          "competitor_value": 4.870999953709543,
+          "ratio_over_gte": 0.38191939346175263,
+          "pass": true
+        }
+      }
+    },
+    "siglip2": {
+      "gte_response_p95_ms": 49.49999996460974,
+      "gte_response_median_ms": 31.67499997653067,
+      "gte_service_p95_ms": 29.02600006200373,
+      "gte_throughput_rps": 403.5105417626397,
+      "minimum_ratio_p95": 2.287272730069261,
+      "minimum_service_ratio_p95": 0.22779577073957644,
+      "competitors": {
+        "pure_ruby": {
+          "metric": "response_time.p95_ms",
+          "gte_value": 49.49999996460974,
+          "competitor_value": 113.22000005748123,
+          "ratio_over_gte": 2.287272730069261,
+          "pass": true
+        }
+      },
+      "service_competitors": {
+        "pure_ruby": {
+          "metric": "service_time.p95_ms",
+          "gte_value": 29.02600006200373,
+          "competitor_value": 6.612000055611134,
+          "ratio_over_gte": 0.22779577073957644,
+          "pass": true
+        }
+      }
+    }
+  },
+  "regressions": {
+    "e5": {
+      "previous_gte_response_p95_ms": 20.481999963521957,
+      "current_gte_response_p95_ms": 24.10699997562915,
+      "allowed_gte_response_p95_ms": 23.554299958050247,
+      "regressed": true
+    },
+    "clip": {
+      "previous_gte_response_p95_ms": 18.484000000171363,
+      "current_gte_response_p95_ms": 18.399000051431358,
+      "allowed_gte_response_p95_ms": 21.256600000197068,
+      "regressed": false
+    },
+    "siglip2": {
+      "previous_gte_response_p95_ms": 42.15800005476922,
+      "current_gte_response_p95_ms": 49.49999996460974,
+      "allowed_gte_response_p95_ms": 48.481700062984594,
+      "regressed": true
+    }
+  }
+}
+```

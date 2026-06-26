@@ -3,15 +3,21 @@
 module GTE
   class Reranker
     class << self
-      def config(model_dir)
+      alias_method :native_new, :new
+
+      def new(model_dir, pool_size: nil, &block)
         cfg = default_config(model_dir)
-
-        if block_given?
-          yielded = yield(cfg)
-          cfg = yielded if yielded.is_a?(Config::Reranker)
-        end
-
-        build(cfg)
+        cfg = block.call(cfg) if block
+        native_new(
+          cfg.model_dir,
+          cfg.optimization_level,
+          cfg.model_name.to_s,
+          cfg.sigmoid,
+          cfg.output_tensor.to_s,
+          cfg.max_length || 0,
+          cfg.padding.to_s,
+          cfg.execution_providers.to_s
+        )
       end
 
       private
@@ -26,21 +32,6 @@ module GTE
           max_length: nil,
           padding: nil,
           execution_providers: nil
-        )
-      end
-
-      def build(cfg)
-        new(
-          cfg.model_dir,
-          cfg.optimization_level,
-          cfg.model_name.to_s,
-          cfg.sigmoid,
-          cfg.output_tensor.to_s,
-          cfg.max_length || 0,
-          cfg.padding.to_s,
-          cfg.execution_providers.to_s,
-          false, # lowercase_input
-          0 # max_input_chars
         )
       end
     end

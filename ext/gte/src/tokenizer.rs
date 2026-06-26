@@ -1,14 +1,13 @@
 use crate::error::{GteError, Result};
 use crate::model_config::PaddingMode;
+use ndarray::Array2;
 use std::path::Path;
 use tokenizers::{PaddingParams, PaddingStrategy, TruncationParams};
 
 pub struct Tokenized {
-    pub rows: usize,
-    pub cols: usize,
-    pub input_ids: Vec<i64>,
-    pub attn_masks: Vec<i64>,
-    pub type_ids: Option<Vec<i64>>,
+    pub input_ids: Array2<i64>,
+    pub attn_masks: Array2<i64>,
+    pub type_ids: Option<Array2<i64>>,
 }
 
 pub struct Tokenizer {
@@ -24,7 +23,6 @@ impl Tokenizer {
         padding_mode: PaddingMode,
         fixed_padding_length: Option<usize>,
     ) -> Result<Self> {
-        #[allow(unused_results)]
         {
             let mut tokenizer =
                 tokenizers::Tokenizer::from_file(tokenizer_path).map_err(|e| GteError::Tokenizer(e.to_string()))?;
@@ -42,33 +40,39 @@ impl Tokenizer {
     }
 
     pub fn tokenize(&self, texts: &[String]) -> Result<Tokenized> {
-        if texts.len() == 1 {
-            let encoding =
-                self.tokenizer.encode_fast(texts[0].as_str(), true).map_err(|e| GteError::Tokenizer(e.to_string()))?;
-            return Ok(build_tokenized_single(&encoding, self.with_type_ids));
+        if texts.is_empty() {
+            return Ok(Tokenized { input_ids: Array2::zeros((0, 0)), attn_masks: Array2::zeros((0, 0)), type_ids: None });
         }
 
         let encode_inputs: Vec<&str> = texts.iter().map(String::as_str).collect();
         let encodings =
             self.tokenizer.encode_batch_fast(encode_inputs, true).map_err(|e| GteError::Tokenizer(e.to_string()))?;
 
-        Ok(build_tokenized(&encodings, self.with_type_ids))
+        build_tokenized(&encodings, self.with_type_ids)
     }
 
     pub fn tokenize_pairs(&self, pairs: &[(String, String)]) -> Result<Tokenized> {
+        if pairs.is_empty() {
+            return Ok(Tokenized { input_ids: Array2::zeros((0, 0)), attn_masks: Array2::zeros((0, 0)), type_ids: None });
+        }
+
         let encode_inputs: Vec<tokenizers::EncodeInput<'_>> =
             pairs.iter().map(|(left, right)| (left.as_str(), right.as_str()).into()).collect();
         let encodings =
             self.tokenizer.encode_batch_fast(encode_inputs, true).map_err(|e| GteError::Tokenizer(e.to_string()))?;
-        Ok(build_tokenized(&encodings, self.with_type_ids))
+        build_tokenized(&encodings, self.with_type_ids)
     }
 
     pub fn tokenize_query_candidates(&self, query: &str, candidates: &[String]) -> Result<Tokenized> {
+        if candidates.is_empty() {
+            return Ok(Tokenized { input_ids: Array2::zeros((0, 0)), attn_masks: Array2::zeros((0, 0)), type_ids: None });
+        }
+
         let encode_inputs: Vec<tokenizers::EncodeInput<'_>> =
             candidates.iter().map(|candidate| (query, candidate.as_str()).into()).collect();
         let encodings =
             self.tokenizer.encode_batch_fast(encode_inputs, true).map_err(|e| GteError::Tokenizer(e.to_string()))?;
-        Ok(build_tokenized(&encodings, self.with_type_ids))
+        build_tokenized(&encodings, self.with_type_ids)
     }
 }
 
@@ -102,36 +106,30 @@ fn resolve_padding_strategy(
     }
 }
 
-fn build_tokenized_single(encoding: &tokenizers::Encoding, with_type_ids: bool) -> Tokenized {
-    let cols = encoding.len();
-
-    let input_ids: Vec<i64> = encoding.get_ids().iter().map(|&v| i64::from(v)).collect();
-    let attn_masks: Vec<i64> = encoding.get_attention_mask().iter().map(|&v| i64::from(v)).collect();
-    let type_ids: Option<Vec<i64>> =
-        with_type_ids.then(|| encoding.get_type_ids().iter().map(|&v| i64::from(v)).collect());
-
-    Tokenized { rows: 1, cols, input_ids, attn_masks, type_ids }
+fn to_i64(array: &[u32]) -> Vec<i64> {
+    array.iter().map(|&v| v as i64).collect()
 }
 
-fn build_tokenized(encodings: &[tokenizers::Encoding], with_type_ids: bool) -> Tokenized {
+fn build_tokenized(encodings: &[tokenizers::Encoding], with_type_ids: bool) -> Result<Tokenized> {
     let rows = encodings.len();
     let cols = encodings.first().map_or(0, tokenizers::Encoding::len);
-    let len = rows * cols;
+    if rows == 0 || cols == 0 {
+        return Ok(Tokenized { input_ids: Array2::zeros((0, 0)), attn_masks: Array2::zeros((0, 0)), type_ids: None });
+    }
 
-    let mut input_ids = Vec::with_capacity(len);
-    let mut attn_masks = Vec::with_capacity(len);
-    let mut type_ids = with_type_ids.then(|| Vec::with_capacity(len));
+    let mut input_ids = Array2::zeros((0, cols));
+    let mut attn_masks = Array2::zeros((0, cols));
+    let mut type_ids = with_type_ids.then(|| Array2::zeros((0, cols)));
 
     for encoding in encodings {
-        input_ids.extend(encoding.get_ids().iter().map(|&v| i64::from(v)));
-        attn_masks.extend(encoding.get_attention_mask().iter().map(|&v| i64::from(v)));
-
-        if let Some(type_ids) = type_ids.as_mut() {
-            type_ids.extend(encoding.get_type_ids().iter().map(|&v| i64::from(v)));
+        input_ids.push_row(ndarray::ArrayView::from(&to_i64(encoding.get_ids())))?;
+        attn_masks.push_row(ndarray::ArrayView::from(&to_i64(encoding.get_attention_mask())))?;
+        if let Some(ref mut type_ids) = type_ids {
+            type_ids.push_row(ndarray::ArrayView::from(&to_i64(encoding.get_type_ids())))?;
         }
     }
 
-    Tokenized { rows, cols, input_ids, attn_masks, type_ids }
+    Ok(Tokenized { input_ids, attn_masks, type_ids })
 }
 
 #[cfg(test)]
@@ -154,9 +152,6 @@ mod tests {
 
     #[test]
     fn resolve_padding_strategy_auto_always_uses_batch_longest() {
-        // Auto ignores fixed_padding_length from tokenizer.json — BatchLongest is
-        // always faster for inference and correct for variable-length inputs.
-        // Use PaddingMode::Fixed explicitly when fixed-length padding is required.
         assert!(matches!(resolve_padding_strategy(PaddingMode::Auto, 64, Some(64)), PaddingStrategy::BatchLongest));
         assert!(matches!(resolve_padding_strategy(PaddingMode::Auto, 512, None), PaddingStrategy::BatchLongest));
     }
