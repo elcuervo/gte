@@ -64,9 +64,7 @@ fn panic_payload_to_string(payload: Box<dyn std::any::Any + Send>) -> String {
 
 unsafe extern "C" fn run_embed_without_gvl(ptr: *mut c_void) -> *mut c_void {
     let args = &mut *(ptr as *mut InferArgs);
-    let run_result = catch_unwind(AssertUnwindSafe(|| {
-        (*args.embedder).embed(&*args.texts)
-    }));
+    let run_result = catch_unwind(AssertUnwindSafe(|| (*args.embedder).embed(&*args.texts)));
     args.result = Some(match run_result {
         Ok(result) => result,
         Err(payload) => {
@@ -89,10 +87,7 @@ unsafe extern "C" fn run_score_without_gvl(ptr: *mut c_void) -> *mut c_void {
     std::ptr::null_mut()
 }
 
-fn infer_without_gvl(
-    embedder: &Arc<Embedder>,
-    texts: Vec<String>,
-) -> Result<ndarray::Array2<f32>, Error> {
+fn infer_without_gvl(embedder: &Arc<Embedder>, texts: Vec<String>) -> Result<ndarray::Array2<f32>, Error> {
     let embeddings = unsafe {
         let mut args = InferArgs { embedder: Arc::as_ptr(embedder), texts: &texts as *const Vec<String>, result: None };
         rb_sys::rb_thread_call_without_gvl(

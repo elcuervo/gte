@@ -5,7 +5,7 @@ use crate::model_profile::{
     resolve_tokenizer_path, select_output_tensor, validate_supported_text_inputs,
 };
 use crate::postprocess::normalize_l2 as normalize_l2_rows;
-use crate::session::{build_session, run_session, resolve_pool_size, SessionPool};
+use crate::session::{build_session, resolve_pool_size, run_session, SessionPool};
 use crate::tokenizer::{parse_padding_mode_override, Tokenizer};
 use ndarray::Array2;
 use std::path::{Path, PathBuf};

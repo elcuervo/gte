@@ -3,7 +3,7 @@
 module GTE
   class Reranker
     class << self
-      alias_method :native_new, :new
+      alias native_new new
 
       def new(model_dir, &block)
         cfg = default_config(model_dir)
@@ -35,6 +35,5 @@ module GTE
         )
       end
     end
-
   end
 end

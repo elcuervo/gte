@@ -41,7 +41,11 @@ impl Tokenizer {
 
     pub fn tokenize(&self, texts: &[String]) -> Result<Tokenized> {
         if texts.is_empty() {
-            return Ok(Tokenized { input_ids: Array2::zeros((0, 0)), attn_masks: Array2::zeros((0, 0)), type_ids: None });
+            return Ok(Tokenized {
+                input_ids: Array2::zeros((0, 0)),
+                attn_masks: Array2::zeros((0, 0)),
+                type_ids: None,
+            });
         }
 
         let encode_inputs: Vec<&str> = texts.iter().map(String::as_str).collect();
@@ -53,7 +57,11 @@ impl Tokenizer {
 
     pub fn tokenize_pairs(&self, pairs: &[(String, String)]) -> Result<Tokenized> {
         if pairs.is_empty() {
-            return Ok(Tokenized { input_ids: Array2::zeros((0, 0)), attn_masks: Array2::zeros((0, 0)), type_ids: None });
+            return Ok(Tokenized {
+                input_ids: Array2::zeros((0, 0)),
+                attn_masks: Array2::zeros((0, 0)),
+                type_ids: None,
+            });
         }
 
         let encode_inputs: Vec<tokenizers::EncodeInput<'_>> =
@@ -65,7 +73,11 @@ impl Tokenizer {
 
     pub fn tokenize_query_candidates(&self, query: &str, candidates: &[String]) -> Result<Tokenized> {
         if candidates.is_empty() {
-            return Ok(Tokenized { input_ids: Array2::zeros((0, 0)), attn_masks: Array2::zeros((0, 0)), type_ids: None });
+            return Ok(Tokenized {
+                input_ids: Array2::zeros((0, 0)),
+                attn_masks: Array2::zeros((0, 0)),
+                type_ids: None,
+            });
         }
 
         let encode_inputs: Vec<tokenizers::EncodeInput<'_>> =

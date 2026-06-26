@@ -69,13 +69,13 @@ report('gte fetch #1')
 gte_a.embed('query: warmup')
 report('gte warmup')
 
-gte_b = GTE.config(options[:model_dir])
+GTE.config(options[:model_dir])
 report('gte fetch #2')
 
 texts = Array.new(options[:burst]) { |i| "query: memory probe #{i}" }
 burst('gte thread burst', workers: options[:workers], requests: texts) { |text| gte_a.embed(text) }
 
-gte_new = GTE.config(options[:model_dir])
+GTE.config(options[:model_dir])
 report('gte new #2')
 
 gte_xnnpack = GTE.config(options[:model_dir]) { |config| config.with(execution_providers: 'xnnpack') }

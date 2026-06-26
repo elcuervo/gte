@@ -40,6 +40,5 @@ RSpec.describe 'GTE::Reranker' do
       expect(scores.length).to eq(candidates.length)
       scores.each { |score| expect(score).to be_a(Float) }
     end
-
   end
 end
